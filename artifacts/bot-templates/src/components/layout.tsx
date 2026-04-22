@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Bot, MessageSquare, Terminal, Lightbulb, Menu, Moon, Sun, Server, Key } from "lucide-react";
+import { Bot, MessageSquare, Terminal, Lightbulb, Menu, Moon, Sun, Server, Key, AlertCircle } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -28,6 +28,7 @@ export function Layout({ children }: LayoutProps) {
     { href: "/tips", label: t("navTips"), icon: Lightbulb },
     { href: "/deploy", label: t("navDeploy"), icon: Server },
     { href: "/credentials", label: t("navCredentials"), icon: Key },
+    { href: "/errors", label: t("navErrors"), icon: AlertCircle },
   ];
 
   const SidebarContent = ({ onNav }: { onNav?: () => void }) => (
