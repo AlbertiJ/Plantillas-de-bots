@@ -102,6 +102,10 @@ const translations: Record<Lang, Record<string, string>> = {
     modifyHint: "MODIFY",
     copyCode: "Copy Code",
     copied: "Copied",
+    downloadCode: "Download file",
+    navErrors: "Common Errors",
+    searchPlaceholder: "Search templates...",
+    searchNoResults: "No templates match your search.",
   },
   es: {
     appTitle: "Plantillas de Bots",
@@ -196,6 +200,10 @@ const translations: Record<Lang, Record<string, string>> = {
     modifyHint: "MODIFICAR",
     copyCode: "Copiar Código",
     copied: "Copiado",
+    downloadCode: "Descargar archivo",
+    navErrors: "Errores Comunes",
+    searchPlaceholder: "Buscar plantillas...",
+    searchNoResults: "Ninguna plantilla coincide con tu búsqueda.",
   },
 };
 

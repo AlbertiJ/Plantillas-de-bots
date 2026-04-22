@@ -12,6 +12,7 @@ import SetupGuide from "@/pages/setup";
 import Tips from "@/pages/tips";
 import Deployment from "@/pages/deployment";
 import Credentials from "@/pages/credentials";
+import CommonErrors from "@/pages/errors";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/tips" component={Tips} />
       <Route path="/deploy" component={Deployment} />
       <Route path="/credentials" component={Credentials} />
+      <Route path="/errors" component={CommonErrors} />
       <Route component={NotFound} />
     </Switch>
   );

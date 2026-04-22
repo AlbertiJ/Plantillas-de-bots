@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/context/language";
 
@@ -132,6 +132,17 @@ export function CodeBlock({ code, language = "python", filename }: CodeBlockProp
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const downloadFile = () => {
+    const name = filename || `code.${language === "bash" ? "sh" : "py"}`;
+    const blob = new Blob([code], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const lines = code.split("\n");
 
   return (
@@ -141,20 +152,32 @@ export function CodeBlock({ code, language = "python", filename }: CodeBlockProp
     >
       <div className="flex items-center justify-between px-3 sm:px-4 py-1.5 bg-zinc-900 border-b border-zinc-800">
         <span className="text-xs font-mono text-zinc-400 truncate">{filename || language}</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 flex-shrink-0 ml-2"
-          onClick={copyToClipboard}
-          data-testid="button-copy-code"
-        >
-          {copied ? (
-            <Check className="h-3.5 w-3.5 mr-1.5 text-green-500" />
-          ) : (
-            <Copy className="h-3.5 w-3.5 mr-1.5" />
-          )}
-          {copied ? t("copied") : t("copyCode")}
-        </Button>
+        <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+            onClick={downloadFile}
+            data-testid="button-download-code"
+            title={t("downloadCode")}
+          >
+            <Download className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+            onClick={copyToClipboard}
+            data-testid="button-copy-code"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 mr-1.5 text-green-500" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            {copied ? t("copied") : t("copyCode")}
+          </Button>
+        </div>
       </div>
       <div
         style={{

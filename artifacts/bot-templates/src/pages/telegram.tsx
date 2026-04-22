@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { Layout } from "@/components/layout";
 import { CodeBlock } from "@/components/code-block";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLanguage } from "@/context/language";
+import { Search } from "lucide-react";
 
 export default function TelegramBots() {
   const { t, lang } = useLanguage();
+  const [search, setSearch] = useState("");
 
   const M = (es: string, en: string) => lang === "es" ? es : en;
 
@@ -300,6 +303,12 @@ if __name__ == "__main__":
     },
   ];
 
+  const filtered = templates.filter(tmpl =>
+    search === "" ||
+    tmpl.name.toLowerCase().includes(search.toLowerCase()) ||
+    tmpl.description.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
     <Layout>
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -310,9 +319,23 @@ if __name__ == "__main__":
           </p>
         </div>
 
-        <Tabs defaultValue={templates[0].id} className="w-full">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={t("searchPlaceholder")}
+            className="w-full pl-9 pr-4 py-2 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+          />
+        </div>
+
+        {filtered.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{t("searchNoResults")}</p>
+        ) : (
+        <Tabs defaultValue={filtered[0].id} className="w-full">
           <TabsList className="w-full overflow-x-auto flex-nowrap sm:flex-wrap h-auto justify-start bg-transparent p-0 mb-4 border-b border-border rounded-none gap-0">
-            {templates.map((template) => (
+            {filtered.map((template) => (
               <TabsTrigger
                 key={template.id}
                 value={template.id}
@@ -324,7 +347,7 @@ if __name__ == "__main__":
             ))}
           </TabsList>
 
-          {templates.map((template) => (
+          {filtered.map((template) => (
             <TabsContent key={template.id} value={template.id} className="mt-0 focus-visible:ring-0">
               <div className="mb-3">
                 <h2 className="text-lg sm:text-xl font-semibold mb-1">{template.name}</h2>
@@ -334,6 +357,7 @@ if __name__ == "__main__":
             </TabsContent>
           ))}
         </Tabs>
+        )}
       </div>
     </Layout>
   );
