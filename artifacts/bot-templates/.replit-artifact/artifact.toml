@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Bot Templates - Telegram & WhatsApp"
+version = "1.0.0"
+id = "artifacts/bot-templates"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21402
+
+[services.development]
+run = "pnpm --filter @workspace/bot-templates run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bot-templates", "run", "build" ]
+publicDir = "artifacts/bot-templates/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21402"
+BASE_PATH = "/"
