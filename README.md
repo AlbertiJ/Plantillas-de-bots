@@ -1,82 +1,58 @@
-# Plantillas de Bots en Python / Python Bot Templates
+# Documentación de configuración local del proyecto
 
-Guía interactiva con plantillas listas para usar para crear bots de **Telegram** y **WhatsApp** con Python.
+## Opciones de instalación
 
-## ¿Qué incluye?
+### 1. Script automático
+Puedes usar el script automático para instalar todas las dependencias y configurar el proyecto de manera rápida. Simplemente ejecuta `./install.sh` desde la raíz del proyecto.
 
-- 5 plantillas de Telegram (eco, comandos, teclado inline, encuestas, archivos)
-- 8 plantillas de WhatsApp (webhook, comandos, multimedia, scheduler, ChatGPT, SQLite, grupos, idioma auto)
-- Guía de instalación paso a paso
-- Buenas prácticas y logging
-- Guía de despliegue 24/7 (Railway, VPS, Docker)
-- Gestión segura de credenciales
-- Página de errores comunes y soluciones
-- Bilingüe español / inglés
+### 2. Manual paso a paso
+Si prefieres hacerlo manualmente, sigue estos pasos:
 
----
+1. Clona el repositorio:
+   ```bash
+   git clone https://github.com/AlbertiJ/bot-templates-python.git
+   cd bot-templates-python
+   ```
+2. Instala las dependencias requeridas:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Configura las variables de entorno como se indica en la sección de [Variables de entorno](#variables-de-entorno).
 
-## Requisitos previos
-
-- [Node.js](https://nodejs.org/) v18 o superior
-- [pnpm](https://pnpm.io/installation) (`npm install -g pnpm`)
-
----
-
-## Instalación y ejecución local
-
-### Opción A — Script automático
-
-**Mac / Linux:**
+### 3. Acceso rápido
+Para ejecutar el proyecto rápidamente, asegúrate de que las variables de entorno estén configuradas correctamente y luego ejecuta:
 ```bash
-bash setup.sh
+python app.py
 ```
 
-**Windows:**
-```bat
-setup.bat
-```
+## Variables de entorno
 
-### Opción B — Manual
+Asegúrate de configurar las siguientes variables de entorno antes de ejecutar el proyecto. Estos son los valores por defecto:
 
-```bash
-# 1. Clonar el repositorio
-git clone https://github.com/AlbertiJ/replit.git
-cd replit
+- `PORT=5173`
+- `BASE_PATH=/`
 
-# 2. Instalar dependencias
-pnpm install
+Puedes configurarlas en tu terminal o mediante un archivo `.env`.
 
-# 3. Iniciar la aplicación
-pnpm --filter @workspace/bot-templates run dev
-```
+## Scripts disponibles
 
-Luego abrir el navegador en: **http://localhost:5173** (o el puerto que indique la terminal)
+- `start`: Inicia la aplicación.
+- `test`: Ejecuta las pruebas.
+- `lint`: Analiza el código en busca de problemas de estilo.
 
----
+## Tecnologías utilizadas
 
-## Estructura del proyecto
+Este proyecto utiliza las siguientes tecnologías:
 
-```
-artifacts/
-  bot-templates/        ← Aplicación web principal (React + Vite)
-    src/
-      pages/            ← Páginas: home, telegram, whatsapp, setup, tips, deploy, credentials, errors
-      components/       ← Layout, CodeBlock y componentes UI
-      context/          ← Contexto de idioma (ES/EN)
-```
+- Python
+- Flask
+- Docker
 
----
+## Solución de problemas
 
-## Tecnologías
+### Problemas comunes:
+1. **Error de puerto ocupado**: Asegúrate de que no hay otra aplicación utilizando el puerto configurado.
+2. **Problemas de dependencias**: Revisa que todas las dependencias estén correctamente instaladas desde el `requirements.txt`.
+3. **Errores de configuración**: Verifica que las variables de entorno estén correctamente configuradas y accesibles por el entorno de ejecución.
 
-- React + Vite + TypeScript
-- Tailwind CSS + shadcn/ui
-- Wouter (routing)
-- next-themes (modo oscuro/claro)
-- Resaltador de sintaxis Python personalizado (sin dependencias externas)
-
----
-
-## Licencia
-
-MIT — Usá, modificá y distribuí libremente.
+Cualquier otro error que encuentres, consulta la documentación oficial de las herramientas utilizadas o crea un problema en este repositorio.
