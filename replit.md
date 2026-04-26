@@ -92,7 +92,12 @@ Ambos en `.gitignore`. El panel permite editarlos desde la UI.
 
 Ver `README.md` para el roadmap completo. Estado actual:
 - [x] Fase 0: Setup base, README, replit.md, estructura de carpetas
-- [ ] Fase 1: Panel admin con login, dark/light + brillo, ES/EN, responsive
+- [x] Fase 1: Panel admin con login, dark/light + brillo, ES/EN, responsive
+  - Backend: `/api/auth/*`, `/api/tokens` con bcrypt + cookies de sesion
+  - Credenciales por archivo en `data/credentials/cred-<uuid>.json` (rotacion al cambiar clave)
+  - Tokens en `data/tokens.json` con sync automatico al `.env`
+  - Frontend: AuthProvider, BrightnessProvider, controles flotantes, /login, /admin
+  - Bootstrap: usuario `admin` con clave aleatoria al primer arranque (visible en log)
 - [ ] Fase 2: Auditar plantillas existentes
 - [ ] Fase 3: 5+5 plantillas Telegram/WhatsApp con IA
 - [ ] Fase 4: 5+5 plantillas CTF/OSINT (con disclaimer)
