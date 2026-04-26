@@ -10,10 +10,12 @@ lxml>=5.3.0                     # Parser rapido para BeautifulSoup
 # === Telegram ===
 python-telegram-bot>=21.6       # Cliente oficial de Telegram
 
-# === WhatsApp (API oficial Meta) ===
-# Para WhatsApp usamos la API REST de Meta directamente con `requests`.
-# No hay SDK oficial Python; las llamadas son simples HTTP.
-flask>=3.0.3                    # Para webhooks de WhatsApp (recibir mensajes)
+# === WhatsApp (Twilio sandbox - Fase 2) ===
+# Las plantillas actuales usan Twilio porque su sandbox es instantaneo.
+# Fase 3 anadira equivalentes con la API oficial de Meta (solo `requests`).
+flask>=3.0.3                    # Webhooks HTTP entrantes
+twilio>=9.3.7                   # Cliente Twilio (REST + TwiML)
+apscheduler>=3.10.4             # Mensajes programados (cron, intervalos)
 
 # === IA (opcional, solo plantillas con agente) ===
 openai>=1.54.0                  # Cliente OpenAI

@@ -6,12 +6,14 @@ Esta carpeta contiene los **bots de Telegram, WhatsApp y herramientas CTF/OSINT*
 
 ```
 bots/
-├── telegram/        Bots de Telegram (basicos + agentes IA)
-├── whatsapp/        Bots de WhatsApp (API oficial Meta)
-├── ctf-osint/       Bots para CTF y OSINT (USO AUTORIZADO/EDUCATIVO)
-├── shared/          Utilidades comunes (env, logger, http, csv, watchdog)
+├── telegram/        5 plantillas listas (echo, commands, inline, poll, files) - ver telegram/README.md
+├── whatsapp/        9 plantillas listas (Twilio + Flask) - ver whatsapp/README.md
+├── ctf-osint/       Plantillas CTF y OSINT (USO AUTORIZADO/EDUCATIVO) - Fase 4
+├── shared/          Utilidades comunes (env, logger, disclaimer)
 └── requirements.txt Dependencias Python
 ```
+
+> **Estado del audit (Fase 2):** las 14 plantillas existentes ya viven en archivos `.py` reales y usan `bots.shared.env` + `bots.shared.logger`. Las de WhatsApp usan Twilio (sandbox instantaneo); equivalentes con la API oficial de Meta llegan en Fase 3.
 
 ## Instalacion
 

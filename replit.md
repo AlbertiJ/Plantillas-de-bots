@@ -46,10 +46,12 @@ Sandbox de diseno para iterar componentes UI de forma aislada.
 
 ## Bots Python (`bots/`)
 
-- **telegram/**: bots basicos + 5 con agente IA (a crear)
-- **whatsapp/**: bots oficiales (Meta Business API) + 5 con agente IA (a crear)
-- **ctf-osint/**: 5+5 plantillas para Telegram/WhatsApp con analisis de URLs, scraping, deteccion de formularios, GET/POST, exportacion CSV. **Solo uso autorizado/educativo** (ver disclaimer en cada archivo).
-- **shared/**: utilidades comunes (env, logger, http, csv, watchdog).
+- **telegram/** (5 plantillas listas): `echo_bot.py`, `commands_bot.py`, `inline_keyboard_bot.py`, `poll_bot.py`, `files_bot.py`. + 5 con agente IA llegan en Fase 3.
+- **whatsapp/** (9 plantillas listas, basadas en Twilio + Flask): `webhook_basic.py`, `command_router.py`, `media_messages.py`, `scheduler_apscheduler.py`, `chatgpt_integration.py`, `sqlite_database.py`, `group_multiuser.py`, `auto_language_detect.py`, `order_tracker.py`. Variantes con API oficial de Meta llegan en Fase 3.
+- **ctf-osint/**: 5+5 plantillas para Telegram/WhatsApp con analisis de URLs, scraping, deteccion de formularios, GET/POST, exportacion CSV. **Solo uso autorizado/educativo** (ver disclaimer en cada archivo). Llega en Fase 4.
+- **shared/**: `env.py` (require_env/get_env), `logger.py` (get_logger), `disclaimer.py` (CTF/OSINT).
+
+Todas las plantillas usan `from bots.shared.env import require_env` y `from bots.shared.logger import get_logger`. Cada `# MODIFICAR:` indica un punto pensado para personalizar.
 
 ## Stack
 
@@ -98,7 +100,13 @@ Ver `README.md` para el roadmap completo. Estado actual:
   - Tokens en `data/tokens.json` con sync automatico al `.env`
   - Frontend: AuthProvider, BrightnessProvider, controles flotantes, /login, /admin
   - Bootstrap: usuario `admin` con clave aleatoria al primer arranque (visible en log)
-- [ ] Fase 2: Auditar plantillas existentes
+- [x] Fase 2: Auditar plantillas existentes
+  - 5 plantillas Telegram + 9 plantillas WhatsApp extraidas a archivos `.py` reales en `bots/`
+  - Normalizadas para usar `bots.shared.env` y `bots.shared.logger`
+  - Hallazgo: las de WhatsApp usan Twilio; doc apuntaba a Meta. Twilio se mantiene (sandbox instantaneo) y Fase 3 anade equivalentes Meta en paralelo
+  - `bots/shared/logger.py` nuevo (logger comun configurado por `LOG_LEVEL`)
+  - `requirements.txt` actualizado (twilio, apscheduler agregados)
+  - Per-folder `README.md` en `bots/telegram/` y `bots/whatsapp/`
 - [ ] Fase 3: 5+5 plantillas Telegram/WhatsApp con IA
 - [ ] Fase 4: 5+5 plantillas CTF/OSINT (con disclaimer)
 - [ ] Fase 5: Menu CTF/OSINT en panel
