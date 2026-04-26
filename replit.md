@@ -1,39 +1,101 @@
-# Workspace
+# Plantillas de bots
 
-## Overview
+## Vision general
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+Proyecto **Plantillas de bots**: coleccion de plantillas de bots de Telegram y WhatsApp en Python, mas un panel web administrador. Pensado para correr **100% en local** (la version anterior estaba orientada a la nube).
 
-## Artifacts
+## Estructura del repo
 
-### bot-templates (React + Vite, at `/`)
-Python bot templates showcase for Telegram and WhatsApp development.
-- **Dark mode** default with light mode toggle
-- **Bilingual ES/EN** via `LanguageProvider` context + floating toggle (bottom-right)
-- **Pages**: Home, Telegram (5 templates), WhatsApp (8 templates), Setup, Tips, Deploy 24/7, Credentials
-- **Syntax highlighter**: Custom Python tokenizer in `code-block.tsx` (no external deps)
-- **Key files**: `src/context/language.tsx` (translations), `src/components/layout.tsx`, `src/App.tsx`
-- Templates include inline `# MODIFY:` comments in active language (ES/EN) explaining customization
-- Credentials page emphasizes NEVER hardcoding tokens — always use `.env` locally / env vars in cloud
+```
+plantillas-de-bots/
+├── artifacts/
+│   ├── bot-templates/     ← Panel web admin (React + Vite)
+│   ├── api-server/        ← API local (Express)
+│   └── mockup-sandbox/    ← Sandbox de diseno
+├── bots/                  ← Bots Python (Telegram, WhatsApp, CTF, OSINT)
+│   ├── telegram/          ← Bots de Telegram
+│   ├── whatsapp/          ← Bots de WhatsApp
+│   ├── ctf-osint/         ← Bots para CTF y OSINT (con disclaimer)
+│   ├── shared/            ← Utilidades comunes (env, logger, http, csv)
+│   └── requirements.txt   ← Dependencias Python
+├── lib/                   ← Librerias TypeScript compartidas
+├── scripts/               ← Scripts de instalacion y setup
+├── .credentials.json      ← (Generado por panel admin, NO subir a Git)
+├── .env                   ← (Generado, NO subir a Git)
+└── README.md
+```
+
+## Artifacts (panel web)
+
+### bot-templates (React + Vite, en `/`)
+Panel administrador y vitrina de plantillas.
+- **Modo oscuro** por defecto + toggle a claro + **atenuador de brillo** (slider)
+- **Bilingue ES/EN** via `LanguageProvider` + boton flotante (margen derecho, siempre visible)
+- **Responsive** (movil/tablet/desktop con breakpoints CSS)
+- **Login** con credenciales en `.credentials.json` (archivo separado, ID unico)
+- **Paginas**: Home, Telegram, WhatsApp, CTF/OSINT, Setup, Tips, Deploy local 24/7, Credentials, Admin
+- **Resaltado de sintaxis Python**: tokenizer custom en `code-block.tsx`
+- **Archivos clave**: `src/context/language.tsx`, `src/components/layout.tsx`, `src/App.tsx`
+- Cada plantilla incluye comentarios `# MODIFICAR:` con ideas de personalizacion
+
+### api-server (Express, local)
+API local que sirve al panel: gestion de credenciales, configuracion de tokens, lanzar/parar bots, ver estado, exportar CSV.
+
+### mockup-sandbox
+Sandbox de diseno para iterar componentes UI de forma aislada.
+
+## Bots Python (`bots/`)
+
+- **telegram/**: bots basicos + 5 con agente IA (a crear)
+- **whatsapp/**: bots oficiales (Meta Business API) + 5 con agente IA (a crear)
+- **ctf-osint/**: 5+5 plantillas para Telegram/WhatsApp con analisis de URLs, scraping, deteccion de formularios, GET/POST, exportacion CSV. **Solo uso autorizado/educativo** (ver disclaimer en cada archivo).
+- **shared/**: utilidades comunes (env, logger, http, csv, watchdog).
 
 ## Stack
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+### Panel web
+- pnpm workspaces, Node 24, TypeScript 5.9
+- React 19, Vite, wouter, TanStack Query
+- TailwindCSS, shadcn/ui (Radix), framer-motion, lucide-react
 
-## Key Commands
+### API
+- Express 5, PostgreSQL + Drizzle ORM (opcional), Zod, Orval
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+### Bots
+- Python 3.11+
+- `python-telegram-bot`, `requests`, `beautifulsoup4`, `python-dotenv`
+- `openai` o `anthropic` para plantillas con IA
 
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+## Comandos clave
+
+### Panel web
+- `pnpm install` — instala dependencias
+- `pnpm --filter @workspace/bot-templates run dev` — panel admin en `http://localhost:5173`
+- `pnpm --filter @workspace/api-server run dev` — API local
+- `pnpm run typecheck` — typecheck completo
+- `pnpm run build` — build completo
+
+### Bots Python
+- `pip install -r bots/requirements.txt` — instala dependencias
+- `python bots/telegram/echo_bot.py` — ejemplo
+- `python scripts/watchdog.py` — modo 24x7 local con reinicio automatico
+
+## Credenciales
+
+**Regla de oro**: NUNCA hardcodear tokens. Todo va en:
+- `.env` (raiz del proyecto) — tokens de bots y APIs
+- `.credentials.json` — credenciales del panel admin (generado por la app)
+
+Ambos en `.gitignore`. El panel permite editarlos desde la UI.
+
+## Roadmap (resumen)
+
+Ver `README.md` para el roadmap completo. Estado actual:
+- [x] Fase 0: Setup base, README, replit.md, estructura de carpetas
+- [ ] Fase 1: Panel admin con login, dark/light + brillo, ES/EN, responsive
+- [ ] Fase 2: Auditar plantillas existentes
+- [ ] Fase 3: 5+5 plantillas Telegram/WhatsApp con IA
+- [ ] Fase 4: 5+5 plantillas CTF/OSINT (con disclaimer)
+- [ ] Fase 5: Menu CTF/OSINT en panel
+- [ ] Fase 6: Modo 24x7 local con watchdog
+- [ ] Fase 7: Empaquetado descargable

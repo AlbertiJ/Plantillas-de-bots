@@ -1,0 +1,30 @@
+# Plantillas de bots - dependencias Python
+# Instalar con: pip install -r bots/requirements.txt
+
+# === Core ===
+python-dotenv>=1.0.1            # Carga variables de entorno desde .env
+requests>=2.32.3                # HTTP client (GET/POST)
+beautifulsoup4>=4.12.3          # Web scraping / parser HTML
+lxml>=5.3.0                     # Parser rapido para BeautifulSoup
+
+# === Telegram ===
+python-telegram-bot>=21.6       # Cliente oficial de Telegram
+
+# === WhatsApp (API oficial Meta) ===
+# Para WhatsApp usamos la API REST de Meta directamente con `requests`.
+# No hay SDK oficial Python; las llamadas son simples HTTP.
+flask>=3.0.3                    # Para webhooks de WhatsApp (recibir mensajes)
+
+# === IA (opcional, solo plantillas con agente) ===
+openai>=1.54.0                  # Cliente OpenAI
+anthropic>=0.39.0               # Cliente Anthropic
+
+# === CTF / OSINT ===
+dnspython>=2.7.0                # Consultas DNS
+python-whois>=0.9.4             # Whois lookups
+tldextract>=5.1.3               # Parsear dominios
+urllib3>=2.2.3                  # HTTP avanzado
+
+# === Utilidades ===
+rich>=13.9.4                    # Logging y output bonito en consola
+typer>=0.13.0                   # CLI elegante para los bots
