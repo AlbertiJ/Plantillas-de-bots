@@ -4,6 +4,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { LanguageProvider } from "@/context/language";
+import { AuthProvider } from "@/context/auth";
+import { BrightnessProvider } from "@/context/brightness";
+import { FloatingControls } from "@/components/floating-controls";
+import { ProtectedRoute } from "@/components/protected-route";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import TelegramBots from "@/pages/telegram";
@@ -13,20 +17,30 @@ import Tips from "@/pages/tips";
 import Deployment from "@/pages/deployment";
 import Credentials from "@/pages/credentials";
 import CommonErrors from "@/pages/errors";
+import LoginPage from "@/pages/login";
+import AdminPage from "@/pages/admin";
 
 const queryClient = new QueryClient();
+
+const protect = (Component: React.ComponentType) => () => (
+  <ProtectedRoute>
+    <Component />
+  </ProtectedRoute>
+);
 
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/telegram" component={TelegramBots} />
-      <Route path="/whatsapp" component={WhatsAppBots} />
-      <Route path="/setup" component={SetupGuide} />
-      <Route path="/tips" component={Tips} />
-      <Route path="/deploy" component={Deployment} />
-      <Route path="/credentials" component={Credentials} />
-      <Route path="/errors" component={CommonErrors} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/" component={protect(Home)} />
+      <Route path="/telegram" component={protect(TelegramBots)} />
+      <Route path="/whatsapp" component={protect(WhatsAppBots)} />
+      <Route path="/setup" component={protect(SetupGuide)} />
+      <Route path="/tips" component={protect(Tips)} />
+      <Route path="/deploy" component={protect(Deployment)} />
+      <Route path="/credentials" component={protect(Credentials)} />
+      <Route path="/errors" component={protect(CommonErrors)} />
+      <Route path="/admin" component={protect(AdminPage)} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -36,14 +50,19 @@ function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
       <LanguageProvider>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
-            <Toaster />
-          </TooltipProvider>
-        </QueryClientProvider>
+        <BrightnessProvider>
+          <AuthProvider>
+            <QueryClientProvider client={queryClient}>
+              <TooltipProvider>
+                <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                  <Router />
+                </WouterRouter>
+                <FloatingControls />
+                <Toaster />
+              </TooltipProvider>
+            </QueryClientProvider>
+          </AuthProvider>
+        </BrightnessProvider>
       </LanguageProvider>
     </ThemeProvider>
   );

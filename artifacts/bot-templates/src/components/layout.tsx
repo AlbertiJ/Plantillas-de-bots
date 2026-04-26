@@ -1,19 +1,21 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Bot, MessageSquare, Terminal, Lightbulb, Menu, Moon, Sun, Server, Key, AlertCircle } from "lucide-react";
+import { Bot, MessageSquare, Terminal, Lightbulb, Menu, Moon, Sun, Server, Key, AlertCircle, Shield, LogOut } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useLanguage } from "@/context/language";
+import { useAuth } from "@/context/auth";
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
 export function Layout({ children }: LayoutProps) {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
   const { theme, setTheme } = useTheme();
   const { t, lang, setLang } = useLanguage();
+  const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -29,7 +31,13 @@ export function Layout({ children }: LayoutProps) {
     { href: "/deploy", label: t("navDeploy"), icon: Server },
     { href: "/credentials", label: t("navCredentials"), icon: Key },
     { href: "/errors", label: t("navErrors"), icon: AlertCircle },
+    { href: "/admin", label: t("navAdmin"), icon: Shield },
   ];
+
+  const onLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
 
   const SidebarContent = ({ onNav }: { onNav?: () => void }) => (
     <div className="flex flex-col h-full py-4">
@@ -37,6 +45,13 @@ export function Layout({ children }: LayoutProps) {
         <Bot className="h-5 w-5 text-primary flex-shrink-0" />
         <span className="truncate">{t("appTitle")}</span>
       </div>
+
+      {user && (
+        <div className="px-4 sm:px-6 pb-3 text-xs text-muted-foreground">
+          <span className="opacity-70">{t("loggedAs")}: </span>
+          <span className="font-medium text-foreground">{user.username}</span>
+        </div>
+      )}
 
       <nav className="flex-1 px-2 sm:px-4 space-y-0.5 text-sm font-medium overflow-y-auto">
         {navItems.map((item) => {
@@ -73,6 +88,18 @@ export function Layout({ children }: LayoutProps) {
             <><Moon className="h-3.5 w-3.5 mr-2" />{t("darkMode")}</>
           )}
         </Button>
+        {user && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start text-muted-foreground text-xs"
+            onClick={onLogout}
+            data-testid="button-logout"
+          >
+            <LogOut className="h-3.5 w-3.5 mr-2" />
+            {t("logoutButton")}
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -119,16 +146,6 @@ export function Layout({ children }: LayoutProps) {
           {children}
         </div>
       </main>
-
-      {/* Floating Language Toggle — always visible, right side */}
-      <button
-        onClick={() => setLang(lang === "es" ? "en" : "es")}
-        className="hidden md:flex fixed right-4 bottom-6 z-50 items-center gap-1.5 bg-primary text-primary-foreground text-xs font-bold px-3 py-2 rounded-full shadow-lg hover:opacity-90 transition-opacity"
-        data-testid="button-lang-float"
-        title={lang === "es" ? "Switch to English" : "Cambiar a Español"}
-      >
-        <span>{lang === "es" ? "🇬🇧 EN" : "🇦🇷 ES"}</span>
-      </button>
     </div>
   );
 }
