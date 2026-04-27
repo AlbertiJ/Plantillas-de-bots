@@ -46,8 +46,8 @@ Sandbox de diseno para iterar componentes UI de forma aislada.
 
 ## Bots Python (`bots/`)
 
-- **telegram/** (5 plantillas listas): `echo_bot.py`, `commands_bot.py`, `inline_keyboard_bot.py`, `poll_bot.py`, `files_bot.py`. + 5 con agente IA llegan en Fase 3.
-- **whatsapp/** (9 plantillas listas, basadas en Twilio + Flask): `webhook_basic.py`, `command_router.py`, `media_messages.py`, `scheduler_apscheduler.py`, `chatgpt_integration.py`, `sqlite_database.py`, `group_multiuser.py`, `auto_language_detect.py`, `order_tracker.py`. Variantes con API oficial de Meta llegan en Fase 3.
+- **telegram/** (10 plantillas): basicas (`echo_bot`, `commands_bot`, `inline_keyboard_bot`, `poll_bot`, `files_bot`) + agentes IA (`agent_openai_basic`, `agent_anthropic_tools`, `agent_websearch`, `agent_rag_documents`, `agent_vision`).
+- **whatsapp/** (14 plantillas, Twilio + Flask): basicas (`webhook_basic`, `command_router`, `media_messages`, `scheduler_apscheduler`, `chatgpt_integration`, `sqlite_database`, `group_multiuser`, `auto_language_detect`, `order_tracker`) + agentes IA (`agent_openai_persistent`, `agent_anthropic_tools`, `agent_websearch`, `agent_rag_documents`, `agent_vision`). Variantes con API oficial de Meta opcionales en Fase 3.5.
 - **ctf-osint/**: 5+5 plantillas para Telegram/WhatsApp con analisis de URLs, scraping, deteccion de formularios, GET/POST, exportacion CSV. **Solo uso autorizado/educativo** (ver disclaimer en cada archivo). Llega en Fase 4.
 - **shared/**: `env.py` (require_env/get_env), `logger.py` (get_logger), `disclaimer.py` (CTF/OSINT).
 
@@ -107,7 +107,11 @@ Ver `README.md` para el roadmap completo. Estado actual:
   - `bots/shared/logger.py` nuevo (logger comun configurado por `LOG_LEVEL`)
   - `requirements.txt` actualizado (twilio, apscheduler agregados)
   - Per-folder `README.md` en `bots/telegram/` y `bots/whatsapp/`
-- [ ] Fase 3: 5+5 plantillas Telegram/WhatsApp con IA
+- [x] Fase 3: 5+5 plantillas Telegram/WhatsApp con IA
+  - Telegram: `agent_openai_basic` (memoria persistente JSON), `agent_anthropic_tools` (calculadora + hora), `agent_websearch` (DuckDuckGo + OpenAI con citas), `agent_rag_documents` (TF-IDF puro Python sobre data/rag_docs/), `agent_vision` (gpt-4o-mini multimodal)
+  - WhatsApp: `agent_openai_persistent` (memoria SQLite), `agent_anthropic_tools`, `agent_websearch`, `agent_rag_documents`, `agent_vision` (descarga media de Twilio con auth basica)
+  - Sin nuevas dependencias (openai, anthropic, requests, bs4 ya estaban)
+  - Banner de inicio del API server: ahora muestra URL + IP LAN + credenciales iniciales de admin si se acaban de generar
 - [ ] Fase 4: 5+5 plantillas CTF/OSINT (con disclaimer)
 - [ ] Fase 5: Menu CTF/OSINT en panel
 - [ ] Fase 6: Modo 24x7 local con watchdog

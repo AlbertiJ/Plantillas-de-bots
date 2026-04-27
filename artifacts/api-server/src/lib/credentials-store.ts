@@ -97,15 +97,6 @@ export function bootstrap(): { created: boolean; initialPassword?: string } {
   writeCred(rec);
   writeIndex({ activeId: id });
 
-  logger.warn(
-    {
-      username: rec.username,
-      initialPassword,
-      hint: "Change this password from the admin panel after first login.",
-    },
-    "BOOTSTRAP: created default admin credentials",
-  );
-
   return { created: true, initialPassword };
 }
 

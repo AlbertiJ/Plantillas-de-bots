@@ -11,6 +11,11 @@ Bots de Telegram listos para usar, basados en `python-telegram-bot v20+`.
 | `inline_keyboard_bot.py` | Mensajes con botones inline y callbacks. |
 | `poll_bot.py` | Crea encuestas/quizzes con `/poll` y procesa las respuestas. |
 | `files_bot.py` | Recibe fotos y documentos y los guarda en `downloads/`. |
+| `agent_openai_basic.py` | Agente OpenAI con memoria persistente en `data/chats/<chat_id>.json`. |
+| `agent_anthropic_tools.py` | Claude (Anthropic) con uso de herramientas (calculadora, hora). |
+| `agent_websearch.py` | Busqueda en DuckDuckGo + sintesis con OpenAI citando fuentes. |
+| `agent_rag_documents.py` | RAG sobre `data/rag_docs/*.{txt,md}` con TF-IDF puro Python. |
+| `agent_vision.py` | Multimodal con vision: analiza fotos enviadas (gpt-4o-mini). |
 
 ## Como ejecutar
 
@@ -38,10 +43,15 @@ python -m bots.telegram.echo_bot
 Todas las plantillas usan `bots.shared.env.require_env`, que falla con un
 mensaje claro si la variable no existe.
 
-| Variable | Obligatoria | Descripcion |
+| Variable | Obligatoria en | Descripcion |
 |---|---|---|
-| `TELEGRAM_BOT_TOKEN` | Si | Token de tu bot (lo da [@BotFather](https://t.me/BotFather)). |
-| `LOG_LEVEL` | No | `DEBUG` / `INFO` / `WARNING` / `ERROR`. Default: `INFO`. |
+| `TELEGRAM_BOT_TOKEN` | todos | Token de tu bot (lo da [@BotFather](https://t.me/BotFather)). |
+| `OPENAI_API_KEY` | agent_openai_basic, websearch, rag, vision | API key de OpenAI. |
+| `ANTHROPIC_API_KEY` | agent_anthropic_tools | API key de Anthropic. |
+| `OPENAI_MODEL` | opcional | Default `gpt-4o-mini`. |
+| `OPENAI_VISION_MODEL` | opcional (vision) | Default `gpt-4o-mini`. |
+| `ANTHROPIC_MODEL` | opcional | Default `claude-3-5-sonnet-latest`. |
+| `LOG_LEVEL` | opcional | `DEBUG` / `INFO` / `WARNING` / `ERROR`. Default `INFO`. |
 
 ## Convenciones
 

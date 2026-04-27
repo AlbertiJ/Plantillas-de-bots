@@ -22,6 +22,11 @@ Bots de WhatsApp basados en **Twilio + Flask**. Reciben webhooks POST en
 | `group_multiuser.py` | Identifica admins y soporta `/broadcast` y `/stats`. |
 | `auto_language_detect.py` | Detecta idioma (ES/EN/PT) y responde en el mismo. |
 | `order_tracker.py` | Sistema de seguimiento de pedidos con SQLite (`orders.db`). |
+| `agent_openai_persistent.py` | Agente OpenAI con memoria SQLite (`data/whatsapp_chats.db`). Mejora a `chatgpt_integration.py` (que es solo RAM). |
+| `agent_anthropic_tools.py` | Claude con herramientas (calculadora, hora). |
+| `agent_websearch.py` | DuckDuckGo + OpenAI citando fuentes. |
+| `agent_rag_documents.py` | RAG sobre `data/rag_docs/` con TF-IDF puro Python. |
+| `agent_vision.py` | Vision multimodal: descarga la imagen de Twilio y la analiza con gpt-4o-mini. |
 
 ## Como ejecutar
 
@@ -60,8 +65,11 @@ webhook a `https://TU-TUNEL.ngrok-free.app/whatsapp`.
 | `TWILIO_ACCOUNT_SID` | scheduler | SID de tu cuenta Twilio. |
 | `TWILIO_AUTH_TOKEN` | scheduler | Auth token de Twilio. |
 | `TWILIO_WHATSAPP_NUMBER` | scheduler | Numero verificado (default sandbox `whatsapp:+14155238886`). |
-| `OPENAI_API_KEY` | chatgpt_integration | API key de OpenAI. |
-| `OPENAI_MODEL` | chatgpt_integration (opcional) | Modelo a usar. Default `gpt-3.5-turbo`. |
+| `OPENAI_API_KEY` | chatgpt_integration, agent_openai_persistent, websearch, rag, vision | API key de OpenAI. |
+| `OPENAI_MODEL` | opcional | Default `gpt-4o-mini`. |
+| `OPENAI_VISION_MODEL` | opcional (vision) | Default `gpt-4o-mini`. |
+| `ANTHROPIC_API_KEY` | agent_anthropic_tools | API key de Anthropic. |
+| `ANTHROPIC_MODEL` | opcional | Default `claude-3-5-sonnet-latest`. |
 | `PORT` | todos | Puerto Flask (default `5000`). |
 | `LOG_LEVEL` | todos | Default `INFO`. |
 

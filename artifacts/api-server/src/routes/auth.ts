@@ -1,7 +1,6 @@
 import { Router, type IRouter } from "express";
 import { z } from "zod";
 import {
-  bootstrap,
   getActive,
   publicView,
   verifyLogin,
@@ -13,8 +12,6 @@ import { createSession, destroySession, SESSION_COOKIE } from "../lib/sessions";
 import { requireAuth, type AuthedRequest } from "../lib/auth-middleware";
 
 const router: IRouter = Router();
-
-bootstrap();
 
 const isProd = process.env["NODE_ENV"] === "production";
 
