@@ -173,11 +173,11 @@ export default function AdminPage() {
               </div>
               <div>
                 <Label htmlFor="new">{t("adminPwdNew")}</Label>
-                <Input id="new" type="text" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} required minLength={8} data-testid="input-new-password" />
+                <Input id="new" type="password" value={newPwd} onChange={(e) => setNewPwd(e.target.value)} required minLength={8} data-testid="input-new-password" />
               </div>
               <div>
                 <Label htmlFor="cnf">{t("adminPwdConfirm")}</Label>
-                <Input id="cnf" type="text" value={confirmPwd} onChange={(e) => setConfirmPwd(e.target.value)} required minLength={8} data-testid="input-confirm-password" />
+                <Input id="cnf" type="password" value={confirmPwd} onChange={(e) => setConfirmPwd(e.target.value)} required minLength={8} data-testid="input-confirm-password" />
               </div>
 
               <div className="flex flex-wrap gap-2">
