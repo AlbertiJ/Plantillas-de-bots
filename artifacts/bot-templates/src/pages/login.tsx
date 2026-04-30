@@ -28,7 +28,7 @@ export default function LoginPage() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) navigate("/");
+    if (!loading && user) navigate("/admin");
   }, [loading, user, navigate]);
 
   // Al cargar la página, consultar si es el primer arranque
