@@ -7,6 +7,7 @@ import {
   changePassword,
   setLocked,
   generateRandomPassword,
+  consumeInitialPassword,
 } from "../lib/credentials-store";
 import { createSession, destroySession, SESSION_COOKIE } from "../lib/sessions";
 import { requireAuth, type AuthedRequest } from "../lib/auth-middleware";
@@ -32,6 +33,21 @@ function clearSessionCookie(res: any) {
 const LoginBody = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
+});
+
+/**
+ * GET /api/auth/first-run
+ * Devuelve la contraseña inicial generada al primer arranque UNA SOLA VEZ.
+ * Después de la primera llamada siempre devuelve { firstRun: false }.
+ * No requiere autenticación — está pensada solo para el flujo de primer uso.
+ */
+router.get("/first-run", (_req, res) => {
+  const password = consumeInitialPassword();
+  if (password) {
+    res.json({ firstRun: true, username: "admin", password });
+  } else {
+    res.json({ firstRun: false });
+  }
 });
 
 router.post("/login", (req, res) => {
