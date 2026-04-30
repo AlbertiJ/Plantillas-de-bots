@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Bot, MessageSquare, Terminal, Lightbulb, Menu, Moon, Sun, Server, Key, AlertCircle, Shield, LogOut, Activity, Rocket } from "lucide-react";
+import { Bot, MessageSquare, Terminal, Lightbulb, Menu, Moon, Sun, Server, Key, AlertCircle, Shield, LogOut, Activity, Rocket, CheckSquare } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -30,14 +30,15 @@ export function Layout({ children }: LayoutProps) {
   ];
 
   const toolItems = [
-    { href: "/launcher",  label: t("navLauncher"),  icon: Rocket },
-    { href: "/activity",  label: t("navActivity"),  icon: Activity },
-    { href: "/admin",     label: t("navAdmin"),      icon: Shield },
+    { href: "/launcher", label: t("navLauncher"), icon: Rocket },
+    { href: "/activity", label: t("navActivity"), icon: Activity },
+    { href: "/status",   label: t("navStatus"),   icon: CheckSquare },
+    { href: "/admin",    label: t("navAdmin"),    icon: Shield },
   ];
 
   const onLogout = async () => { await logout(); navigate("/login"); };
 
-  const NavLink = ({ item, onNav }: { item: typeof navItems[number]; onNav?: () => void }) => {
+  const NavLink = ({ item, onNav }: { item: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }; onNav?: () => void }) => {
     const isActive = location === item.href;
     return (
       <Link href={item.href} onClick={onNav}>
@@ -69,13 +70,11 @@ export function Layout({ children }: LayoutProps) {
       )}
 
       <nav className="flex-1 px-2 sm:px-4 space-y-0.5 text-sm font-medium overflow-y-auto">
-        {/* Plantillas */}
         <p className="px-3 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
           {lang === "es" ? "Plantillas" : "Templates"}
         </p>
         {navItems.map((item) => <NavLink key={item.href} item={item} onNav={onNav} />)}
 
-        {/* Herramientas */}
         <p className="px-3 pt-3 pb-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
           {lang === "es" ? "Herramientas" : "Tools"}
         </p>
@@ -99,7 +98,6 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="flex min-h-screen w-full flex-col md:flex-row bg-background relative">
-      {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between px-4 py-3 border-b bg-background sticky top-0 z-30">
         <div className="flex items-center gap-2 font-bold text-sm">
           <Bot className="h-4 w-4" />
@@ -120,13 +118,9 @@ export function Layout({ children }: LayoutProps) {
           </Sheet>
         </div>
       </div>
-
-      {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-56 lg:w-64 flex-col border-r bg-sidebar flex-shrink-0 sticky top-0 h-screen overflow-hidden">
         <SidebarContent />
       </aside>
-
-      {/* Main Content */}
       <main className="flex-1 overflow-auto min-w-0">
         <div className="mx-auto p-4 sm:p-6 md:p-8 max-w-5xl w-full">{children}</div>
       </main>
