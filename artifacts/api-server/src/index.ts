@@ -17,8 +17,7 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-// Bootstrap admin credentials BEFORE we start listening so the banner
-// can include the initial password if it was just generated.
+// Bootstrap admin credentials BEFORE we start listening
 const boot = bootstrap();
 
 function getLanAddresses(): string[] {
@@ -41,9 +40,7 @@ function printBanner(): void {
   lines.push("  PLANTILLAS DE BOTS - API SERVER");
   lines.push(sep);
   lines.push("");
-  lines.push("  Servidor escuchando. Abre el panel en alguna de estas URLs:");
-  lines.push(`    - http://localhost:${port}`);
-  lines.push(`    - http://127.0.0.1:${port}`);
+  lines.push(`  API escuchando en puerto ${port}`);
   for (const ip of getLanAddresses()) {
     lines.push(`    - http://${ip}:${port}   (LAN)`);
   }
@@ -56,16 +53,12 @@ function printBanner(): void {
     lines.push("");
     lines.push("  Cambiala desde /admin tras el primer login.");
     lines.push("  Esta contrasena NO se vuelve a mostrar.");
-  } else {
-    lines.push("  Admin ya configurado. Si olvidaste la clave, borra");
-    lines.push("  data/credentials/ y reinicia para regenerar.");
   }
 
   lines.push("");
   lines.push(sep);
   lines.push("");
 
-  // Use console.log so the banner is plain text (not JSON-wrapped by pino).
   console.log(lines.join("\n"));
 }
 

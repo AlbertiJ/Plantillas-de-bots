@@ -1,3 +1,4 @@
+// MODIFICAR: si el servidor API corre en otro dominio, setea VITE_API_URL en el .env del frontend
 const API_BASE: string = ((import.meta.env.VITE_API_URL as string | undefined) ?? "").replace(/\/$/, "");
 
 export class ApiError extends Error {
@@ -25,6 +26,7 @@ export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}
     headers,
   });
   const text = await res.text();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let data: any = null;
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (!res.ok) {
