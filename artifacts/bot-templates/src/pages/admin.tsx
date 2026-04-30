@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Lock, KeyRound, Shield, RefreshCw, Eye, EyeOff, Save, Copy, Check } from "lucide-react";
+import { useLocation } from "wouter";
+import { Lock, KeyRound, Shield, RefreshCw, Eye, EyeOff, Save, Copy, Check, AlertTriangle } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,8 +25,9 @@ const TOKEN_FIELDS: { key: string; labelKey: string; placeholder: string; secret
 ];
 
 export default function AdminPage() {
-  const { user, changePassword, randomPassword, setLocked } = useAuth();
+  const { user, needsPasswordChange, changePassword, randomPassword, setLocked } = useAuth();
   const { t } = useLanguage();
+  const [, navigate] = useLocation();
 
   const [currentPwd, setCurrentPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
@@ -52,20 +54,16 @@ export default function AdminPage() {
   const onChangePwd = async (e: React.FormEvent) => {
     e.preventDefault();
     setPwdMsg(null);
-    if (newPwd !== confirmPwd) {
-      setPwdMsg({ ok: false, text: t("adminPwdMismatch") });
-      return;
-    }
-    if (newPwd.length < 8) {
-      setPwdMsg({ ok: false, text: t("adminPwdWeak") });
-      return;
-    }
+    if (newPwd !== confirmPwd) { setPwdMsg({ ok: false, text: t("adminPwdMismatch") }); return; }
+    if (newPwd.length < 8) { setPwdMsg({ ok: false, text: t("adminPwdWeak") }); return; }
     setPwdSubmitting(true);
     const r = await changePassword(currentPwd, newPwd);
     setPwdSubmitting(false);
     if (r.ok) {
       setPwdMsg({ ok: true, text: t("adminPwdChanged") });
       setCurrentPwd(""); setNewPwd(""); setConfirmPwd("");
+      // Si era el primer login, redirigir al inicio luego del cambio
+      setTimeout(() => navigate("/"), 1200);
     } else {
       setPwdMsg({
         ok: false,
@@ -78,19 +76,12 @@ export default function AdminPage() {
 
   const onGenerate = async () => {
     const p = await randomPassword();
-    setGenerated(p);
-    setNewPwd(p);
-    setConfirmPwd(p);
-    setCopied(false);
+    setGenerated(p); setNewPwd(p); setConfirmPwd(p); setCopied(false);
   };
 
   const onCopy = async () => {
     if (!generated) return;
     try { await navigator.clipboard.writeText(generated); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
-  };
-
-  const onLockToggle = async (next: boolean) => {
-    await setLocked(next);
   };
 
   const onRevealToggle = async (next: boolean) => {
@@ -118,6 +109,21 @@ export default function AdminPage() {
   return (
     <Layout>
       <div className="space-y-8">
+        {/* Banner de primer arranque — obligar cambio de contraseña */}
+        {needsPasswordChange && (
+          <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-amber-600 dark:text-amber-400 text-sm">
+                {t("adminMustChangePwdTitle")}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {t("adminMustChangePwdDesc")}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <Shield className="h-7 w-7 text-primary" />
@@ -147,16 +153,12 @@ export default function AdminPage() {
                 <p className="font-medium">{t("adminLockTitle")}</p>
                 <p className="text-xs text-muted-foreground">{t("adminLockHint")}</p>
               </div>
-              <Switch
-                checked={user?.locked ?? false}
-                onCheckedChange={onLockToggle}
-                data-testid="switch-lock-account"
-              />
+              <Switch checked={user?.locked ?? false} onCheckedChange={setLocked} data-testid="switch-lock-account" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card id="cambiar-contrasena">
           <CardHeader>
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <KeyRound className="h-5 w-5" /> {t("adminPwdTitle")}
@@ -213,13 +215,7 @@ export default function AdminPage() {
                 <h2 className="text-lg font-semibold">{t("adminTokensTitle")}</h2>
                 <p className="text-xs text-muted-foreground mt-1">{t("adminTokensSubtitle")}</p>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => onRevealToggle(!reveal)}
-                data-testid="button-reveal-tokens"
-              >
+              <Button type="button" variant="outline" size="sm" onClick={() => onRevealToggle(!reveal)} data-testid="button-reveal-tokens">
                 {reveal ? <EyeOff className="h-3.5 w-3.5 mr-1.5" /> : <Eye className="h-3.5 w-3.5 mr-1.5" />}
                 {reveal ? t("adminTokensHide") : t("adminTokensReveal")}
               </Button>
@@ -243,22 +239,17 @@ export default function AdminPage() {
                   </div>
                 ))}
               </div>
-
               <div className="flex items-center gap-3 flex-wrap">
                 <Button type="submit" disabled={tokSubmitting} data-testid="button-save-tokens">
                   <Save className="h-3.5 w-3.5 mr-1.5" />
                   {tokSubmitting ? t("loginLoading") : t("adminTokensSave")}
                 </Button>
                 {tokMsg && (
-                  <span
-                    className={`text-sm ${tokMsg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`}
-                    data-testid="text-tokens-msg"
-                  >
+                  <span className={`text-sm ${tokMsg.ok ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}`} data-testid="text-tokens-msg">
                     {tokMsg.text}
                   </span>
                 )}
               </div>
-
               <p className="text-[11px] text-muted-foreground leading-snug">{t("adminTokensFootnote")}</p>
             </form>
           </CardContent>
