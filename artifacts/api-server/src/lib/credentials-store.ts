@@ -7,6 +7,13 @@ import { logger } from "./logger";
 const CREDS_DIR = dataPath("credentials");
 const INDEX_FILE = `${CREDS_DIR}/index.json`;
 
+/**
+ * Archivo temporal que almacena la contraseña inicial hasta que el usuario
+ * la cambie desde el panel admin. Se borra automáticamente al cambiar la clave.
+ * Solo existe durante el período de "primer arranque".
+ */
+const SETUP_PENDING_FILE = `${CREDS_DIR}/.setup-pending`;
+
 export interface CredentialRecord {
   id: string;
   username: string;
@@ -22,8 +29,7 @@ interface IndexFile {
 
 ensureDir(CREDS_DIR);
 
-// Contraseña inicial en memoria — disponible hasta que el usuario la cambie.
-// Nunca se escribe en disco. Se borra al llamar a changePassword().
+// Contraseña inicial en memoria — cacheada desde el archivo .setup-pending
 let _initialPassword: string | null = null;
 
 function credPath(id: string): string {
@@ -70,10 +76,22 @@ export function generateRandomPassword(length = 16): string {
 
 export function bootstrap(): { created: boolean; initialPassword?: string } {
   const idx = readIndex();
+
   if (idx && readCred(idx.activeId)) {
+    // Credenciales ya existen — leer contraseña inicial del archivo temporal si aún no fue cambiada
+    if (existsSync(SETUP_PENDING_FILE)) {
+      try {
+        const saved = readFileSync(SETUP_PENDING_FILE, "utf-8").trim();
+        if (saved) {
+          _initialPassword = saved;
+          logger.info("Primera configuración pendiente: contraseña inicial cargada desde .setup-pending");
+        }
+      } catch {}
+    }
     return { created: false };
   }
 
+  // Primer arranque — crear credenciales
   const orphans = readdirSync(CREDS_DIR).filter((f) => f.startsWith("cred-"));
   for (const f of orphans) {
     try { unlinkSync(`${CREDS_DIR}/${f}`); } catch {}
@@ -93,19 +111,37 @@ export function bootstrap(): { created: boolean; initialPassword?: string } {
   writeCred(rec);
   writeIndex({ activeId: id });
 
-  // Guardar en memoria — disponible hasta que el usuario cambie la contraseña
+  // Guardar en memoria Y en archivo temporal (persiste entre reinicios del servidor)
   _initialPassword = initialPassword;
+  try {
+    writeFileSync(SETUP_PENDING_FILE, initialPassword, "utf-8");
+  } catch (e) {
+    logger.warn({ err: e }, "No se pudo escribir .setup-pending; la clave solo existirá en memoria");
+  }
 
+  logger.info({ id }, "Primer arranque: credenciales generadas");
   return { created: true, initialPassword };
 }
 
 /**
  * Devuelve la contraseña inicial si aún no fue cambiada por el usuario.
- * Retorna null si ya fue cambiada o si el servidor se reinició.
- * Solo disponible en el proceso actual del servidor — nunca persiste en disco.
+ * Lee desde memoria (caché) o desde el archivo .setup-pending si el servidor
+ * fue reiniciado antes de que el usuario cambiara la clave.
+ * Retorna null si la contraseña ya fue cambiada.
  */
 export function getInitialPassword(): string | null {
-  return _initialPassword;
+  if (_initialPassword) return _initialPassword;
+  // Intentar leer del archivo temporal (servidor fue reiniciado)
+  if (existsSync(SETUP_PENDING_FILE)) {
+    try {
+      const saved = readFileSync(SETUP_PENDING_FILE, "utf-8").trim();
+      if (saved) {
+        _initialPassword = saved;
+        return _initialPassword;
+      }
+    } catch {}
+  }
+  return null;
 }
 
 export function getActive(): CredentialRecord | null {
@@ -153,10 +189,13 @@ export function changePassword(currentPassword: string, newPassword: string): { 
   writeIndex({ activeId: newId });
   deleteCred(oldId);
 
-  // Contraseña cambiada — limpiar la inicial de memoria
+  // Contraseña cambiada — limpiar la inicial de memoria Y borrar el archivo temporal
   _initialPassword = null;
+  if (existsSync(SETUP_PENDING_FILE)) {
+    try { unlinkSync(SETUP_PENDING_FILE); } catch {}
+  }
 
-  logger.info({ oldId, newId }, "Password rotated; credential file renamed");
+  logger.info({ oldId, newId }, "Contraseña rotada; primer arranque completado");
   return { ok: true, newId };
 }
 
