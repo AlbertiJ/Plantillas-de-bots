@@ -12,7 +12,7 @@ CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 API_PORT=3001
 WEB_PORT=5173
 
-# ── Carpeta de logs local (evita problemas de permisos en /tmp/) ──────────────
+# ── Carpeta de logs local (evita problemas de permisos en /tmp/) ───────────────
 mkdir -p logs
 LOG_API="./logs/api.log"
 LOG_WEB="./logs/web.log"
@@ -64,28 +64,45 @@ fi
 
 echo ""
 echo -e "${CYAN}  Iniciando servidor API en puerto ${API_PORT}...${NC}"
+echo -e "  ${YELLOW}(si falla, revisá: cat $LOG_API)${NC}"
 PORT=$API_PORT pnpm --filter @workspace/api-server run dev > "$LOG_API" 2>&1 &
 API_PID=$!
 
-# ── Esperar que la API esté lista ──────────────────────────────────────────────
-echo -n "  Esperando que la API compile y arranque"
+# ── Esperar que la API esté lista (máx 60 seg) ───────────────────────────────
+echo -n "  Esperando"
 READY=0
-for i in $(seq 1 90); do
+for i in $(seq 1 30); do
   if curl -sf "http://localhost:${API_PORT}/api/healthz" >/dev/null 2>&1; then
     READY=1; break
+  fi
+  # Si el proceso ya murió, no seguir esperando
+  if ! kill -0 "$API_PID" 2>/dev/null; then
+    break
   fi
   echo -n "."; sleep 2
 done
 echo ""
 
 if [ "$READY" -eq 0 ]; then
-  echo -e "${RED}✗ La API no respondió. Revisá los logs:${NC}"
-  echo "  cat $LOG_API"
-  kill $API_PID 2>/dev/null; exit 1
+  echo ""
+  echo -e "${RED}✗ La API no arrancó en el tiempo esperado.${NC}"
+  echo ""
+  echo -e "${BOLD}  Últimas líneas del log:${NC}"
+  echo -e "${YELLOW}  ─────────────────────────────────────────────${NC}"
+  tail -25 "$LOG_API" 2>/dev/null | sed 's/^/  /'
+  echo -e "${YELLOW}  ─────────────────────────────────────────────${NC}"
+  echo ""
+  echo "  Log completo: cat $LOG_API"
+  echo ""
+  echo -e "${CYAN}  Soluciones comunes:${NC}"
+  echo "  • Puerto ocupado: sudo lsof -i :${API_PORT}  →  kill <PID>"
+  echo "  • Error TypeScript: revisá el log de arriba"
+  echo "  • Dependencias: pnpm install"
+  kill "$API_PID" 2>/dev/null; exit 1
 fi
-echo -e "${GREEN}✓${NC} API lista."
+echo -e "${GREEN}✓${NC} API lista en http://localhost:${API_PORT}"
 
-# ── Obtener estado del primer arranque ─────────────────────────────────────────
+# ── Primer arranque ────────────────────────────────────────────────────────────
 FIRST_RUN_JSON=$(curl -sf "http://localhost:${API_PORT}/api/auth/first-run" 2>/dev/null || echo '{"firstRun":false}')
 IS_FIRST=$(node -e "const d=JSON.parse(process.argv[1]); process.stdout.write(String(d.firstRun))" "$FIRST_RUN_JSON")
 INIT_PASS=$(node -e "const d=JSON.parse(process.argv[1]); process.stdout.write(d.password||'')" "$FIRST_RUN_JSON")
@@ -97,13 +114,12 @@ VITE_API_URL="http://localhost:${API_PORT}" PORT=$WEB_PORT \
   pnpm --filter @workspace/bot-templates run dev > "$LOG_WEB" 2>&1 &
 WEB_PID=$!
 
-# Guardar PIDs para poder detenerlos luego
 echo "API_PID=$API_PID" > "$LOG_PIDS"
 echo "WEB_PID=$WEB_PID" >> "$LOG_PIDS"
 
 sleep 3
 
-# ── Obtener IP LAN ─────────────────────────────────────────────────────────────
+# ── IP LAN ─────────────────────────────────────────────────────────────────────
 LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 if [ -z "$LAN_IP" ]; then
   LAN_IP=$(ip route get 1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}')
@@ -135,9 +151,8 @@ echo -e "${BOLD}║${NC}     rm -rf data/credentials/ && ./start.sh           ${
 echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${NC}"
 fi
 
-echo -e "${BOLD}║${NC}   Para reiniciar sin reinstalar: ${CYAN}./start.sh${NC}            ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}   Logs API: ${CYAN}./logs/api.log${NC}                            ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}   Logs Web: ${CYAN}./logs/web.log${NC}                            ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}   Reiniciar sin reinstalar: ${CYAN}./start.sh${NC}               ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}   Logs: ${CYAN}./logs/api.log${NC}  /  ${CYAN}./logs/web.log${NC}         ${BOLD}║${NC}"
 echo -e "${BOLD}║${NC}   ${CYAN}Ctrl+C para detener ambos servicios${NC}                  ${BOLD}║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
