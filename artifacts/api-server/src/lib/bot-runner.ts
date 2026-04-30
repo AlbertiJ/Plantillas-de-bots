@@ -5,10 +5,31 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { logger } from "./logger";
 
-// Raíz del repositorio — relativo a artifacts/api-server/dist/lib/ (compilado)
-// En desarrollo con tsx: __filename apunta a artifacts/api-server/src/lib/bot-runner.ts
-const _dir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
-export const REPO_ROOT = resolve(_dir, "../../../../");
+// ── REPO_ROOT ─────────────────────────────────────────────────────────────────
+// MODIFICAR: si la detección automática falla, setea REPO_ROOT en tu .env
+// apuntando al directorio raíz del repositorio clonado (donde está el .env.example).
+//
+// Lógica automática:
+//  • Si se ejecuta el bundle compilado (dist/index.mjs) → __dirname = .../artifacts/api-server/dist/
+//    Necesitamos subir 3 niveles: dist/ → api-server/ → artifacts/ → repo-root/
+//  • Si se ejecuta con tsx en desarrollo → __dirname = .../artifacts/api-server/src/lib/
+//    Necesitamos subir 4 niveles: lib/ → src/ → api-server/ → artifacts/ → repo-root/
+
+const _dir = typeof __dirname !== "undefined"
+  ? __dirname
+  : dirname(fileURLToPath(import.meta.url));
+
+function computeRepoRoot(dir: string): string {
+  // Detectar si estamos en el bundle (dist/) o en desarrollo (src/lib/)
+  const inDist = dir.includes("/dist/") || dir.includes("\\dist\\") || dir.endsWith("/dist") || dir.endsWith("\\dist");
+  const levels = inDist ? "../../../" : "../../../../";
+  return resolve(dir, levels);
+}
+
+export const REPO_ROOT: string =
+  process.env.REPO_ROOT
+    ? resolve(process.env.REPO_ROOT)
+    : computeRepoRoot(_dir);
 
 const MAX_OUTPUT_LINES = 800;
 const RUN_RETENTION_MS = 30 * 60 * 1000; // 30 minutos tras finalizar

@@ -3,16 +3,39 @@
 
 import { Router, type Request, type Response } from "express";
 import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
 import { BOT_CATALOG } from "../lib/bot-catalog";
 import {
   startBot, stopBot, sendInput, getRun, getAllRuns, REPO_ROOT,
 } from "../lib/bot-runner";
 import { logStart, logStop, getAll, getStats } from "../lib/activity-store";
 import { getTokens, TOKEN_KEYS } from "../lib/tokens-store";
+import { logger } from "../lib/logger";
 
 const router = Router();
+
+// GitHub repo donde están los bots
+// MODIFICAR: cambiar si el repo cambia de nombre o dueño
+const GITHUB_REPO = "AlbertiJ/Plantillas-de-bots";
+const GITHUB_API  = "https://api.github.com";
+
+async function ghFetch(path: string): Promise<Response | null> {
+  const token = process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
+  if (!token) return null;
+  try {
+    const r = await fetch(`${GITHUB_API}${path}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "User-Agent": "plantillas-de-bots-panel",
+      },
+    });
+    return r as unknown as Response;
+  } catch {
+    return null;
+  }
+}
 
 // ── GET /bots — catálogo completo ────────────────────────────────────────────
 router.get("/bots", (_req: Request, res: Response) => {
@@ -29,7 +52,6 @@ router.post("/bots/start", (req: Request, res: Response) => {
 
   const run = startBot(entry.id, entry.file, entry.nameEs);
 
-  // Registrar en el historial persistente
   logStart({
     runId:     run.id,
     botId:     entry.id,
@@ -75,7 +97,6 @@ router.get("/bots/output/:runId", (req: Request, res: Response) => {
 
   const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
 
-  // Enviar historial ya disponible
   run.outputLines.forEach((l) => send({ type: "line", text: l }));
 
   if (run.status !== "running") {
@@ -107,7 +128,6 @@ router.get("/bots/output/:runId", (req: Request, res: Response) => {
 
 // ── GET /bots/activity — historial persistente ───────────────────────────────
 router.get("/bots/activity", (_req: Request, res: Response) => {
-  // Mezclar historial en disco con runs activos en memoria (pueden no estar en disco aún)
   const stored = getAll();
   const inMemoryRunning = getAllRuns()
     .filter((r) => r.status === "running" && !stored.find((s) => s.runId === r.id))
@@ -181,18 +201,111 @@ router.get("/bots/status", (_req: Request, res: Response) => {
     return { id: b.id, path: b.file, exists: existsSync(absPath), absPath };
   });
 
+  // También verificar watchdog_bot.py y otros archivos clave del repo
+  const extraFiles = [
+    { id: "watchdog", path: "watchdog_bot.py" },
+    { id: "env_example", path: ".env.example" },
+    { id: "requirements", path: "bots/requirements.txt" },
+  ].map((f) => ({ ...f, exists: existsSync(resolve(REPO_ROOT, f.path)), absPath: resolve(REPO_ROOT, f.path) }));
+
   res.json({
     repoRoot:  REPO_ROOT,
+    repoUrl:   `https://github.com/${GITHUB_REPO}`,
     python:    { raw: pythonRaw, ok: pythonRaw.includes("Python") },
     node:      { raw: nodeRaw,   ok: nodeRaw.startsWith("v") },
     packages,
     botFiles,
+    extraFiles,
     envExists: existsSync(resolve(REPO_ROOT, ".env")),
     checkedAt: new Date().toISOString(),
   });
 });
 
-// ── GET /bots/token-status — qué tokens del .env están configurados (sin revelar valores) ─────
+// ── POST /bots/fix — descarga archivos faltantes del repositorio GitHub ──────
+// Busca en el repo de GitHub cada archivo de bot que no existe localmente
+// y lo escribe en REPO_ROOT. Requiere GITHUB_PERSONAL_ACCESS_TOKEN en el .env.
+router.post("/bots/fix", async (_req: Request, res: Response) => {
+  const token = process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
+  if (!token) {
+    res.status(503).json({ error: "GITHUB_PERSONAL_ACCESS_TOKEN no configurado en el servidor." });
+    return;
+  }
+
+  // Construir lista de archivos a verificar
+  const filesToCheck = [
+    ...BOT_CATALOG.map((b) => b.file),
+    "watchdog_bot.py",
+    ".env.example",
+    "bots/requirements.txt",
+    "bots/shared/env.py",
+    "bots/shared/logger.py",
+    "bots/shared/disclaimer.py",
+  ];
+
+  const missing = filesToCheck.filter((f) => !existsSync(resolve(REPO_ROOT, f)));
+
+  if (missing.length === 0) {
+    res.json({ fixed: [], skipped: filesToCheck.length, message: "Todos los archivos ya existen en el directorio local." });
+    return;
+  }
+
+  logger.info({ missing: missing.length, repoRoot: REPO_ROOT }, "Starting fix: downloading missing files from GitHub");
+
+  const fixed: string[] = [];
+  const errors: string[] = [];
+
+  for (const filePath of missing) {
+    try {
+      const apiUrl = `${GITHUB_API}/repos/${GITHUB_REPO}/contents/${filePath}`;
+      const r = await fetch(apiUrl, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "User-Agent": "plantillas-de-bots-panel",
+        },
+      });
+
+      if (!r.ok) {
+        errors.push(`${filePath}: HTTP ${r.status}`);
+        continue;
+      }
+
+      const data = await r.json() as { content?: string; encoding?: string };
+      if (!data.content) {
+        errors.push(`${filePath}: sin contenido en la respuesta de GitHub`);
+        continue;
+      }
+
+      const content = Buffer.from(data.content.replace(/\n/g, ""), "base64").toString("utf8");
+      const localPath = resolve(REPO_ROOT, filePath);
+      const dir = dirname(localPath);
+
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+
+      writeFileSync(localPath, content, "utf8");
+      fixed.push(filePath);
+      logger.info({ filePath, localPath }, "Fixed: file downloaded from GitHub");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      errors.push(`${filePath}: ${msg}`);
+      logger.error({ filePath, err: msg }, "Error fixing file");
+    }
+  }
+
+  res.json({
+    fixed,
+    errors,
+    skipped: filesToCheck.length - missing.length,
+    repoRoot: REPO_ROOT,
+    message: fixed.length > 0
+      ? `${fixed.length} archivo(s) descargados del repositorio GitHub.`
+      : "No se pudo arreglar ningún archivo. Ver errores.",
+  });
+});
+
+// ── GET /bots/token-status ────────────────────────────────────────────────────
 router.get("/bots/token-status", (_req: Request, res: Response) => {
   const tokens = getTokens();
   const status: Record<string, boolean> = {};
