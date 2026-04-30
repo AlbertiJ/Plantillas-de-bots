@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Bot, MessageSquare, Terminal, Lightbulb, Menu, Moon, Sun, Server, Key, AlertCircle, Wrench, Library, ShieldAlert, RefreshCw, Activity } from "lucide-react";
+import { Bot, MessageSquare, Terminal, Lightbulb, Menu, Moon, Sun, Server, Key, AlertCircle, Wrench, Library, ShieldAlert, RefreshCw, Activity, Settings, LogOut } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useLanguage } from "@/context/language";
 import { FloatingControls } from "@/components/floating-controls";
+import { useAuth } from "@/context/auth";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -15,6 +16,7 @@ export function Layout({ children }: LayoutProps) {
   const [location] = useLocation();
   const { theme, setTheme } = useTheme();
   const { t, lang, setLang } = useLanguage();
+  const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -85,7 +87,39 @@ export function Layout({ children }: LayoutProps) {
         <NavGroup items={navTools} label={t("navGroupTools")} onNav={onNav} />
       </nav>
 
-      <div className="px-4 pt-4 border-t border-border space-y-1 mt-2">
+      <div className="px-4 pt-3 border-t border-border space-y-1 mt-2">
+        {/* Admin section — only when logged in */}
+        {user && (
+          <>
+            <div className="px-3 py-1.5 flex items-center gap-2 text-xs text-muted-foreground/70">
+              <Settings className="h-3 w-3" />
+              <span className="truncate font-medium">{user.username}</span>
+            </div>
+            <Link href="/admin">
+              <div
+                className={`flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors text-xs ${
+                  location === "/admin"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+                data-testid="link-nav-admin"
+              >
+                <Settings className="h-3.5 w-3.5 shrink-0" />
+                <span>{t("navAdmin")}</span>
+              </div>
+            </Link>
+            <button
+              onClick={() => logout()}
+              className="flex w-full items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              data-testid="button-logout"
+            >
+              <LogOut className="h-3.5 w-3.5 shrink-0" />
+              <span>{t("adminLockHint")}</span>
+            </button>
+            <div className="border-t border-border/40 my-1" />
+          </>
+        )}
+
         <Button
           variant="ghost"
           size="sm"
