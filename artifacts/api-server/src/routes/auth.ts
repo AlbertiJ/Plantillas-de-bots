@@ -7,13 +7,12 @@ import {
   changePassword,
   setLocked,
   generateRandomPassword,
-  consumeInitialPassword,
+  getInitialPassword,
 } from "../lib/credentials-store";
 import { createSession, destroySession, SESSION_COOKIE } from "../lib/sessions";
 import { requireAuth, type AuthedRequest } from "../lib/auth-middleware";
 
 const router: IRouter = Router();
-
 const isProd = process.env["NODE_ENV"] === "production";
 
 function setSessionCookie(res: any, token: string, expiresAt: number) {
@@ -37,12 +36,12 @@ const LoginBody = z.object({
 
 /**
  * GET /api/auth/first-run
- * Devuelve la contraseña inicial generada al primer arranque UNA SOLA VEZ.
- * Después de la primera llamada siempre devuelve { firstRun: false }.
- * No requiere autenticación — está pensada solo para el flujo de primer uso.
+ * Devuelve la contraseña inicial mientras no haya sido cambiada por el usuario.
+ * Después del primer cambio de contraseña, siempre devuelve { firstRun: false }.
+ * No requiere autenticación — pensada solo para el flujo de primer uso.
  */
 router.get("/first-run", (_req, res) => {
-  const password = consumeInitialPassword();
+  const password = getInitialPassword();
   if (password) {
     res.json({ firstRun: true, username: "admin", password });
   } else {
@@ -52,19 +51,15 @@ router.get("/first-run", (_req, res) => {
 
 router.post("/login", (req, res) => {
   const parsed = LoginBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "invalid_body" });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: "invalid_body" }); return; }
   const { username, password } = parsed.data;
   const result = verifyLogin(username, password);
-  if (!result.ok) {
-    res.status(401).json({ error: result.reason ?? "invalid" });
-    return;
-  }
+  if (!result.ok) { res.status(401).json({ error: result.reason ?? "invalid" }); return; }
   const { token, expiresAt } = createSession(result.record!.username, result.record!.id);
   setSessionCookie(res, token, expiresAt);
-  res.json({ ok: true, user: publicView(result.record!) });
+  // Indicar si el usuario debe cambiar la contraseña inicial
+  const needsPasswordChange = getInitialPassword() !== null;
+  res.json({ ok: true, user: publicView(result.record!), needsPasswordChange });
 });
 
 router.post("/logout", (req, res) => {
@@ -76,11 +71,9 @@ router.post("/logout", (req, res) => {
 
 router.get("/me", requireAuth, (_req: AuthedRequest, res) => {
   const rec = getActive();
-  if (!rec) {
-    res.status(404).json({ error: "no_credentials" });
-    return;
-  }
-  res.json({ user: publicView(rec) });
+  if (!rec) { res.status(404).json({ error: "no_credentials" }); return; }
+  const needsPasswordChange = getInitialPassword() !== null;
+  res.json({ user: publicView(rec), needsPasswordChange });
 });
 
 const ChangePasswordBody = z.object({
@@ -90,18 +83,12 @@ const ChangePasswordBody = z.object({
 
 router.post("/change-password", requireAuth, (req, res) => {
   const parsed = ChangePasswordBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "invalid_body" });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: "invalid_body" }); return; }
   const { currentPassword, newPassword } = parsed.data;
   const result = changePassword(currentPassword, newPassword);
-  if (!result.ok) {
-    res.status(400).json({ error: result.reason ?? "failed" });
-    return;
-  }
+  if (!result.ok) { res.status(400).json({ error: result.reason ?? "failed" }); return; }
   const rec = getActive();
-  res.json({ ok: true, user: rec ? publicView(rec) : null });
+  res.json({ ok: true, user: rec ? publicView(rec) : null, needsPasswordChange: false });
 });
 
 router.post("/random-password", requireAuth, (_req, res) => {
@@ -112,15 +99,9 @@ const LockBody = z.object({ locked: z.boolean() });
 
 router.post("/lock", requireAuth, (req, res) => {
   const parsed = LockBody.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: "invalid_body" });
-    return;
-  }
+  if (!parsed.success) { res.status(400).json({ error: "invalid_body" }); return; }
   const result = setLocked(parsed.data.locked);
-  if (!result.ok) {
-    res.status(400).json({ error: "failed" });
-    return;
-  }
+  if (!result.ok) { res.status(400).json({ error: "failed" }); return; }
   const rec = getActive();
   res.json({ ok: true, user: rec ? publicView(rec) : null });
 });
