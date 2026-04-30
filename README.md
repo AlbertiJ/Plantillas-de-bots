@@ -91,7 +91,7 @@ El setup instala todas las dependencias, inicia los servicios y muestra la contr
 Si el setup falla, los bots no aparecen o algo no funciona, ejecutá el script de verificación **antes o después del setup**:
 
 ```bash
-python3 check_install.py
+python3 test_local.py
 ```
 
 No requiere instalar nada extra — usa solo la librería estándar de Python.
