@@ -21,6 +21,7 @@ import LoginPage from "@/pages/login";
 import AdminPage from "@/pages/admin";
 import LauncherPage from "@/pages/launcher";
 import ActivityPage from "@/pages/activity";
+import StatusPage from "@/pages/status";
 
 const queryClient = new QueryClient();
 
@@ -32,17 +33,18 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={LoginPage} />
-      <Route path="/" component={protect(Home)} />
-      <Route path="/telegram" component={protect(TelegramBots)} />
-      <Route path="/whatsapp" component={protect(WhatsAppBots)} />
-      <Route path="/setup" component={protect(SetupGuide)} />
-      <Route path="/tips" component={protect(Tips)} />
-      <Route path="/deploy" component={protect(Deployment)} />
+      <Route path="/"            component={protect(Home)} />
+      <Route path="/telegram"    component={protect(TelegramBots)} />
+      <Route path="/whatsapp"    component={protect(WhatsAppBots)} />
+      <Route path="/setup"       component={protect(SetupGuide)} />
+      <Route path="/tips"        component={protect(Tips)} />
+      <Route path="/deploy"      component={protect(Deployment)} />
       <Route path="/credentials" component={protect(Credentials)} />
-      <Route path="/errors" component={protect(CommonErrors)} />
-      <Route path="/admin" component={protect(AdminPage)} />
-      <Route path="/launcher" component={protect(LauncherPage)} />
-      <Route path="/activity" component={protect(ActivityPage)} />
+      <Route path="/errors"      component={protect(CommonErrors)} />
+      <Route path="/admin"       component={protect(AdminPage)} />
+      <Route path="/launcher"    component={protect(LauncherPage)} />
+      <Route path="/activity"    component={protect(ActivityPage)} />
+      <Route path="/status"      component={protect(StatusPage)} />
       <Route component={NotFound} />
     </Switch>
   );
