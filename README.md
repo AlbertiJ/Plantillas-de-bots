@@ -168,7 +168,7 @@ Al arrancar por **primera vez**:
 
 Si olvidás la contraseña:
 ```bash
-rm -rf data/credentials/
+rm -rf artifacts/api-server/data/credentials/
 ./start.sh
 ```
 
@@ -205,7 +205,7 @@ python watchdog_bot.py
 | **No aparece la contraseña inicial** | Mirá el final de la terminal donde corre `./start.sh` |
 | **Bot no responde** | Verificá `TELEGRAM_BOT_TOKEN` en `.env` |
 | **WhatsApp no recibe mensajes** | El webhook necesita URL pública — usá ngrok o cloudflared |
-| **Olvidé la contraseña del panel** | `rm -rf data/credentials/ && ./start.sh` |
+| **Olvidé la contraseña del panel** | `rm -rf artifacts/api-server/data/credentials/ && ./start.sh` |
 | **ModuleNotFoundError** | `pip install -r bots/requirements.txt` |
 | **Algo falla y no sé qué** | `python3 test_local.py` — te dice exactamente qué está roto |
 
