@@ -25,8 +25,7 @@ if ! command -v node &>/dev/null; then
   echo "  Descargalo desde https://nodejs.org/ (v20 o superior)"
   exit 1
 fi
-NODE_VER=$(node --version)
-echo -e "${GREEN}✓${NC} Node.js ${NODE_VER}"
+echo -e "${GREEN}✓${NC} Node.js $(node --version)"
 
 # ── Verificar / instalar pnpm ─────────────────────────────
 if ! command -v pnpm &>/dev/null; then
@@ -39,16 +38,13 @@ echo -e "${GREEN}✓${NC} pnpm $(pnpm --version)"
 PYTHON_CMD=""
 for cmd in python3 python; do
   if command -v "$cmd" &>/dev/null; then
-    PYVER=$("$cmd" --version 2>&1)
-    PYTHON_CMD="$cmd"
-    break
+    PYTHON_CMD="$cmd"; break
   fi
 done
 if [ -z "$PYTHON_CMD" ]; then
   echo -e "${YELLOW}⚠ Python no encontrado — los bots Python no se podrán ejecutar${NC}"
-  echo "  Descargalo desde https://python.org/ (v3.11 o superior)"
 else
-  echo -e "${GREEN}✓${NC} ${PYVER}"
+  echo -e "${GREEN}✓${NC} $($PYTHON_CMD --version 2>&1)"
 fi
 
 echo ""
@@ -57,40 +53,36 @@ pnpm install --silent
 
 if [ -n "$PYTHON_CMD" ]; then
   echo "  Instalando dependencias de los bots Python..."
-  "$PYTHON_CMD" -m pip install -r bots/requirements.txt -q
+  "$PYTHON_CMD" -m pip install -r bots/requirements.txt -q 2>/dev/null || true
 fi
 
 echo ""
 echo -e "${CYAN}  Iniciando servidor API en puerto ${API_PORT}...${NC}"
 PORT=$API_PORT pnpm --filter @workspace/api-server run dev > /tmp/plantillas-api.log 2>&1 &
 API_PID=$!
-echo "  API PID: ${API_PID}"
 
 # ── Esperar que la API esté lista ─────────────────────────
-echo -n "  Esperando que la API arranque"
+echo -n "  Esperando que la API compile y arranque"
 READY=0
-for i in $(seq 1 60); do
+for i in $(seq 1 90); do
   if curl -sf "http://localhost:${API_PORT}/api/healthz" >/dev/null 2>&1; then
-    READY=1
-    break
+    READY=1; break
   fi
-  echo -n "."
-  sleep 2
+  echo -n "."; sleep 2
 done
 echo ""
 
 if [ "$READY" -eq 0 ]; then
-  echo -e "${RED}✗ La API no respondió en 120 segundos.${NC}"
-  echo "  Revisá los logs: cat /tmp/plantillas-api.log"
-  kill $API_PID 2>/dev/null
-  exit 1
+  echo -e "${RED}✗ La API no respondió. Revisá los logs:${NC}"
+  echo "  cat /tmp/plantillas-api.log"
+  kill $API_PID 2>/dev/null; exit 1
 fi
 echo -e "${GREEN}✓${NC} API lista."
 
-# ── Obtener contraseña inicial ────────────────────────────
+# ── Obtener estado del primer arranque ────────────────────
 FIRST_RUN_JSON=$(curl -sf "http://localhost:${API_PORT}/api/auth/first-run" 2>/dev/null || echo '{"firstRun":false}')
-IS_FIRST=$(echo "$FIRST_RUN_JSON" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); process.stdout.write(String(d.firstRun))")
-INIT_PASS=$(echo "$FIRST_RUN_JSON" | node -e "const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); process.stdout.write(d.password||'')")
+IS_FIRST=$(node -e "const d=JSON.parse(process.argv[1]); process.stdout.write(String(d.firstRun))" "$FIRST_RUN_JSON")
+INIT_PASS=$(node -e "const d=JSON.parse(process.argv[1]); process.stdout.write(d.password||'')" "$FIRST_RUN_JSON")
 
 # ── Iniciar panel web ─────────────────────────────────────
 echo ""
@@ -99,43 +91,50 @@ VITE_API_URL="http://localhost:${API_PORT}" PORT=$WEB_PORT \
   pnpm --filter @workspace/bot-templates run dev > /tmp/plantillas-web.log 2>&1 &
 WEB_PID=$!
 
-# Guardar PIDs para start.sh
+# Guardar PIDs
 echo "API_PID=$API_PID" > /tmp/plantillas-pids.txt
 echo "WEB_PID=$WEB_PID" >> /tmp/plantillas-pids.txt
 
-# ── Mostrar banner final ──────────────────────────────────
 sleep 3
 
-# Obtener IP LAN
-LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || ifconfig 2>/dev/null | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -1)
+# ── Obtener IP LAN ────────────────────────────────────────
+LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+if [ -z "$LAN_IP" ]; then
+  LAN_IP=$(ip route get 1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}')
+fi
 
 echo ""
-echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}║   ✅  Servicios corriendo                    ║${NC}"
-echo -e "${BOLD}╠══════════════════════════════════════════════╣${NC}"
-echo -e "${BOLD}║${NC}   Panel web:                                 ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}     Local:    http://localhost:${WEB_PORT}         ${BOLD}║${NC}"
+echo -e "${BOLD}╔══════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}║   ✅  Servicios corriendo                             ║${NC}"
+echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${NC}"
+echo -e "${BOLD}║${NC}   Panel web — abrí en el navegador:                  ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}     Local:    ${CYAN}http://localhost:${WEB_PORT}${NC}               ${BOLD}║${NC}"
 if [ -n "$LAN_IP" ]; then
-echo -e "${BOLD}║${NC}     Network:  http://${LAN_IP}:${WEB_PORT}     ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}     Network:  ${CYAN}http://${LAN_IP}:${WEB_PORT}${NC}              ${BOLD}║${NC}"
 fi
-echo -e "${BOLD}║${NC}   API local:  http://localhost:${API_PORT}         ${BOLD}║${NC}"
-echo -e "${BOLD}╠══════════════════════════════════════════════╣${NC}"
+echo -e "${BOLD}║${NC}   API:        http://localhost:${API_PORT}               ${BOLD}║${NC}"
+echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${NC}"
 
 if [ "$IS_FIRST" = "true" ] && [ -n "$INIT_PASS" ]; then
-echo -e "${BOLD}║${NC}   ${YELLOW}🔑 CREDENCIALES DE PRIMER ARRANQUE${NC}          ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}     Usuario:    ${BOLD}admin${NC}                         ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}     Contraseña: ${BOLD}${YELLOW}${INIT_PASS}${NC}  ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}   ${YELLOW}⚠  Cambiala desde /admin al primer login${NC}   ${BOLD}║${NC}"
-echo -e "${BOLD}╠══════════════════════════════════════════════╣${NC}"
+echo -e "${BOLD}║${NC}   ${YELLOW}🔑 PRIMER ARRANQUE — credenciales generadas:${NC}         ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}     Usuario:    ${BOLD}admin${NC}                                  ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}     Contraseña: ${BOLD}${YELLOW}${INIT_PASS}${NC}                  ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}   ${YELLOW}⚠  El panel te pedirá cambiarla al primer ingreso${NC}   ${BOLD}║${NC}"
+echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${NC}"
+else
+echo -e "${BOLD}║${NC}   ${CYAN}ℹ  Ya existe una cuenta configurada.${NC}                 ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}     Ingresá con tu contraseña personal.              ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}   ${YELLOW}¿Olvidaste la contraseña? Ejecutá:${NC}                   ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}     rm -rf data/credentials/ && ./start.sh           ${BOLD}║${NC}"
+echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${NC}"
 fi
 
-echo -e "${BOLD}║${NC}   Para reiniciar (sin reinstalar):           ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}     ${CYAN}./start.sh${NC}                               ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}   Logs en: /tmp/plantillas-api.log            ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}             /tmp/plantillas-web.log            ${BOLD}║${NC}"
-echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
+echo -e "${BOLD}║${NC}   Para reiniciar sin reinstalar: ${CYAN}./start.sh${NC}            ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}   Logs: /tmp/plantillas-api.log                       ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}          /tmp/plantillas-web.log                      ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}   ${CYAN}Ctrl+C para detener ambos servicios${NC}                  ${BOLD}║${NC}"
+echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
 
-# Mantener el script corriendo (Ctrl+C para detener todo)
 trap "echo ''; echo '  Deteniendo servicios...'; kill $API_PID $WEB_PID 2>/dev/null; exit 0" SIGINT SIGTERM
 wait $WEB_PID
