@@ -33,7 +33,7 @@ export default function LoginPage() {
 
   // Al cargar la página, consultar si es el primer arranque
   useEffect(() => {
-    apiFetch<FirstRunData>("/api/auth/first-run")
+    apiFetch<FirstRunData>("/auth/first-run")
       .then((data) => {
         if (data.firstRun) {
           setFirstRun(data);
