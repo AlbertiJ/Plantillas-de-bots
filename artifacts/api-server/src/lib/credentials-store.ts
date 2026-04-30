@@ -22,9 +22,9 @@ interface IndexFile {
 
 ensureDir(CREDS_DIR);
 
-// Contraseña inicial guardada en memoria — se borra tras la primera lectura.
-// NUNCA se escribe en disco. Solo disponible durante el primer arranque.
-let _initialPasswordOnce: string | null = null;
+// Contraseña inicial en memoria — disponible hasta que el usuario la cambie.
+// Nunca se escribe en disco. Se borra al llamar a changePassword().
+let _initialPassword: string | null = null;
 
 function credPath(id: string): string {
   return `${CREDS_DIR}/cred-${id}.json`;
@@ -32,11 +32,7 @@ function credPath(id: string): string {
 
 function readIndex(): IndexFile | null {
   if (!existsSync(INDEX_FILE)) return null;
-  try {
-    return JSON.parse(readFileSync(INDEX_FILE, "utf-8"));
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(readFileSync(INDEX_FILE, "utf-8")); } catch { return null; }
 }
 
 function writeIndex(idx: IndexFile): void {
@@ -46,11 +42,7 @@ function writeIndex(idx: IndexFile): void {
 function readCred(id: string): CredentialRecord | null {
   const path = credPath(id);
   if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf-8"));
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(readFileSync(path, "utf-8")); } catch { return null; }
 }
 
 function writeCred(rec: CredentialRecord): void {
@@ -101,20 +93,19 @@ export function bootstrap(): { created: boolean; initialPassword?: string } {
   writeCred(rec);
   writeIndex({ activeId: id });
 
-  // Guardar en memoria para que el panel web pueda mostrarla una sola vez
-  _initialPasswordOnce = initialPassword;
+  // Guardar en memoria — disponible hasta que el usuario cambie la contraseña
+  _initialPassword = initialPassword;
 
   return { created: true, initialPassword };
 }
 
 /**
- * Retorna la contraseña inicial generada en este arranque y la borra de memoria.
- * Solo funciona UNA VEZ por arranque del servidor. Luego devuelve null.
+ * Devuelve la contraseña inicial si aún no fue cambiada por el usuario.
+ * Retorna null si ya fue cambiada o si el servidor se reinició.
+ * Solo disponible en el proceso actual del servidor — nunca persiste en disco.
  */
-export function consumeInitialPassword(): string | null {
-  const pwd = _initialPasswordOnce;
-  _initialPasswordOnce = null;
-  return pwd;
+export function getInitialPassword(): string | null {
+  return _initialPassword;
 }
 
 export function getActive(): CredentialRecord | null {
@@ -162,8 +153,8 @@ export function changePassword(currentPassword: string, newPassword: string): { 
   writeIndex({ activeId: newId });
   deleteCred(oldId);
 
-  // Limpiar la contraseña inicial de memoria si aún no fue consumida
-  _initialPasswordOnce = null;
+  // Contraseña cambiada — limpiar la inicial de memoria
+  _initialPassword = null;
 
   logger.info({ oldId, newId }, "Password rotated; credential file renamed");
   return { ok: true, newId };
