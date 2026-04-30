@@ -43,7 +43,9 @@ const translations: Record<Lang, Record<string, string>> = {
     loginNoCreds: "No credentials configured. Check the API server logs.",
     loginFirstHint: "On first run the API server creates an 'admin' user and prints the initial password to its console. Change it from the Admin Panel after signing in.",
 
-    adminTitle: "Admin Panel",
+    adminMustChangePwdTitle: "Change your initial password to continue",
+    adminMustChangePwdDesc: "For security reasons, you must set a personal password before using the panel. The initial password was auto-generated.",
+        adminTitle: "Admin Panel",
     adminSubtitle: "Manage your local panel account, rotate the password, and configure the bot tokens used by every template.",
     adminAccountTitle: "Account",
     adminAccountUser: "User",
@@ -209,7 +211,9 @@ const translations: Record<Lang, Record<string, string>> = {
     loginNoCreds: "No hay credenciales configuradas. Revisá los logs del servidor API.",
     loginFirstHint: "En el primer arranque el servidor API crea el usuario 'admin' y muestra la contraseña inicial en su consola. Cambiala desde el Panel Admin luego de ingresar.",
 
-    adminTitle: "Panel de Administración",
+    adminMustChangePwdTitle: "Cambiá la contraseña inicial para continuar",
+    adminMustChangePwdDesc: "Por seguridad, debés establecer una contraseña personal antes de usar el panel. La contraseña inicial fue generada automáticamente.",
+        adminTitle: "Panel de Administración",
     adminSubtitle: "Administrá la cuenta del panel local, rotá la contraseña y configurá los tokens de los bots que usan todas las plantillas.",
     adminAccountTitle: "Cuenta",
     adminAccountUser: "Usuario",
