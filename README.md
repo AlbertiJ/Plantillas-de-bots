@@ -2,27 +2,24 @@
 
 Colección de plantillas listas para usar de **bots de Telegram y WhatsApp** escritas en **Python**, con un **panel web administrador** para gestionarlos. Pensado para correr **100% en local**, ideal para aprendizaje, prototipado y uso interno.
 
-> **Antes**: este proyecto se llamaba `bot-templates-python` y se orientaba a la nube. **Ahora** se llama **Plantillas de bots** y todo funciona en tu propia máquina, sin depender de servicios externos pagos.
-
 ---
 
 ## ✨ Qué incluye
 
 ### Plantillas de bots (Python)
-- **Telegram**: bots básicos, manejadores de comandos, y agentes con IA.
-- **WhatsApp**: integraciones vía la API oficial de Meta.
-- **CTF / OSINT** *(uso educativo y autorizado)*: bots para análisis de URLs, web scraping, detección de formularios y métodos GET/POST, exportación a CSV. **Lee el aviso legal abajo.**
+- **Telegram** — 10 bots básicos + 5 agentes IA + 10 CTF/OSINT.
+- **WhatsApp** — 10 bots básicos + 5 agentes IA + 5 CTF/OSINT.
+- **Watchdog 24/7** — reinicio automático con notificaciones opcionales por Telegram.
 
-Cada plantilla viene con código Python comentado bloque por bloque y marcas `# MODIFICAR:` indicando qué se puede personalizar.
+Cada plantilla viene con código Python comentado bloque por bloque y marcas `# MODIFICAR:` indicando exactamente qué personalizar.
 
 ### Panel web administrador (local)
-- Login con credenciales en archivo separado del código (`.credentials.json`).
-- Gestión de claves: cambiar, generar aleatoria, bloquear.
+- Login con credenciales generadas automáticamente al primer arranque.
+- Contraseña inicial aleatoria mostrada **en el panel** — cambiala después del primer login.
+- Gestión de tokens: Telegram, WhatsApp, OpenAI, Anthropic, Gemini.
 - Modo oscuro/claro + atenuador de brillo.
 - Diseño responsive (móvil/tablet/desktop).
 - Botón flotante **ES/EN** siempre visible.
-- Configuración de tokens (Telegram owner ID, WhatsApp API) desde el panel.
-- Menú dedicado para componer plantillas CTF/OSINT a medida (con checkboxes).
 
 ---
 
@@ -32,12 +29,15 @@ Cada plantilla viene con código Python comentado bloque por bloque y marcas `# 
 plantillas-de-bots/
 ├── artifacts/
 │   ├── bot-templates/     ← Panel web (React + Vite)
-│   ├── api-server/        ← API local (Express)
-│   └── mockup-sandbox/    ← Sandbox de diseño
-├── bots/                  ← Bots Python (Telegram, WhatsApp, CTF, OSINT)
-├── lib/                   ← Librerías compartidas
-├── scripts/               ← Scripts de instalación y setup
-├── .credentials.json      ← (Generado, NUNCA subir a Git)
+│   └── api-server/        ← API local (Express + Node.js)
+├── bots/
+│   ├── shared/            ← Utilidades comunes (env, logger, disclaimer)
+│   ├── telegram/          ← 10 plantillas básicas + 5 IA
+│   ├── whatsapp/          ← 10 plantillas básicas + 5 IA
+│   └── ctf-osint/         ← 10 plantillas CTF/OSINT (uso educativo)
+├── watchdog_bot.py        ← Watchdog 24/7 con reinicio automático
+├── bots/requirements.txt  ← Dependencias Python
+├── setup.sh / setup.bat   ← Instalación automática
 ├── .env                   ← (Generado, NUNCA subir a Git)
 └── README.md
 ```
@@ -47,7 +47,7 @@ plantillas-de-bots/
 ## 🚀 Instalación local
 
 ### Requisitos previos
-- **Node.js 24+** y **pnpm 9+** (para el panel web)
+- **Node.js 20+** y **pnpm 9+** (para el panel web y API)
 - **Python 3.11+** y **pip** (para los bots)
 - Git
 
@@ -55,116 +55,261 @@ plantillas-de-bots/
 
 **Linux / macOS:**
 ```bash
-git clone <url-del-repo> plantillas-de-bots
+git clone https://github.com/AlbertiJ/Plantillas-de-bots plantillas-de-bots
 cd plantillas-de-bots
+chmod +x setup.sh
 ./setup.sh
 ```
 
 **Windows:**
 ```cmd
-git clone <url-del-repo> plantillas-de-bots
+git clone https://github.com/AlbertiJ/Plantillas-de-bots plantillas-de-bots
 cd plantillas-de-bots
 setup.bat
 ```
 
 ### Opción B — Manual paso a paso
 
-1. **Clona el repositorio:**
-   ```bash
-   git clone <url-del-repo> plantillas-de-bots
-   cd plantillas-de-bots
-   ```
+**1. Clonar el repositorio:**
+```bash
+git clone https://github.com/AlbertiJ/Plantillas-de-bots plantillas-de-bots
+cd plantillas-de-bots
+```
 
-2. **Instala dependencias del panel web:**
-   ```bash
-   pnpm install
-   ```
+**2. Instalar dependencias del panel web y la API:**
+```bash
+pnpm install
+```
 
-3. **Instala dependencias de los bots Python:**
-   ```bash
-   cd bots
-   pip install -r requirements.txt
-   cd ..
-   ```
+**3. Instalar dependencias de los bots Python:**
+```bash
+pip install -r bots/requirements.txt
+```
 
-4. **Inicia el panel web:**
-   ```bash
-   pnpm --filter @workspace/bot-templates run dev
-   ```
-   El panel estará en `http://localhost:5173`.
+**4. Iniciar el servidor API y el panel web:**
 
-5. **Configura tus tokens** desde el panel admin (no edites código a mano).
+Terminal 1 (API):
+```bash
+pnpm --filter @workspace/api-server run dev
+```
 
-6. **Lanza el bot que quieras:**
-   ```bash
-   python bots/telegram/echo_bot.py
-   ```
+Terminal 2 (Panel web):
+```bash
+pnpm --filter @workspace/bot-templates run dev
+```
+
+**5. Abrir el panel** en `http://localhost:5173` (o el puerto que muestre la terminal).
+
+**6. Primer login:**
+Al iniciar por primera vez, la pantalla de login mostrará automáticamente el usuario y la contraseña generados. Copialos e ingresá. **Cambiá la contraseña desde el Panel Admin** (`/admin`) luego del primer acceso.
+
+**7. Configurar los tokens** desde la sección "Tokens de bots" en el Panel Admin. Los valores se guardan en `.env` y los bots los leen automáticamente.
+
+---
+
+## 🤖 Ejecutar bots individualmente
+
+Podés correr cualquier plantilla directamente desde la consola. Asegurate de tener el `.env` configurado primero (ver sección de Credenciales).
+
+### Bots de Telegram
+
+```bash
+# Bot básico de eco (el más simple para empezar)
+python bots/telegram/echo_bot.py
+
+# Bot de comandos
+python bots/telegram/commands_bot.py
+
+# Teclado inline (botones interactivos)
+python bots/telegram/inline_keyboard_bot.py
+
+# Descarga de archivos
+python bots/telegram/files_bot.py
+
+# Encuestas
+python bots/telegram/poll_bot.py
+
+# Agente con OpenAI
+python bots/telegram/agent_openai_basic.py
+
+# Agente con Anthropic + herramientas
+python bots/telegram/agent_anthropic_tools.py
+
+# Agente con búsqueda web
+python bots/telegram/agent_websearch.py
+
+# Agente con visión (imágenes)
+python bots/telegram/agent_vision.py
+
+# Agente RAG (documentos)
+python bots/telegram/agent_rag_documents.py
+```
+
+### Bots de WhatsApp (requieren ngrok o cloudflared para webhooks)
+
+```bash
+# Webhook básico
+python bots/whatsapp/webhook_basic.py
+
+# Integración ChatGPT
+python bots/whatsapp/chatgpt_integration.py
+
+# Router de comandos
+python bots/whatsapp/command_router.py
+
+# Mensajes multimedia
+python bots/whatsapp/media_messages.py
+
+# Base de datos SQLite
+python bots/whatsapp/sqlite_database.py
+
+# Multi-usuario en grupo
+python bots/whatsapp/group_multiuser.py
+
+# Mensajes programados (cron)
+python bots/whatsapp/scheduler_apscheduler.py
+
+# Detección automática de idioma
+python bots/whatsapp/auto_language_detect.py
+
+# Agente OpenAI persistente
+python bots/whatsapp/agent_openai_persistent.py
+
+# Tracker de pedidos
+python bots/whatsapp/order_tracker.py
+```
+
+### Bots CTF/OSINT (⚠️ solo entornos autorizados)
+
+```bash
+# TG — IP GeoIP + WHOIS
+python bots/ctf-osint/tg_01_ip_geo_whois.py
+
+# TG — DNS Recon
+python bots/ctf-osint/tg_02_dns_recon.py
+
+# TG — Hash Suite
+python bots/ctf-osint/tg_03_hash_suite.py
+
+# TG — Encoding Swiss Knife (Base64, HEX, ROT13, JWT, Morse)
+python bots/ctf-osint/tg_04_encoding_knife.py
+
+# TG — SQLi Payload Builder
+python bots/ctf-osint/tg_05_sqli_builder.py
+
+# WA — IP GeoIP
+python bots/ctf-osint/wa_01_ip_geo.py
+
+# WA — HTTP Headers + Tech Fingerprinting
+python bots/ctf-osint/wa_02_headers_tech.py
+
+# WA — Hash Suite
+python bots/ctf-osint/wa_03_hash_suite.py
+
+# WA — Encoding Toolkit
+python bots/ctf-osint/wa_04_encoding.py
+
+# WA — CTF Toolkit all-in-one
+python bots/ctf-osint/wa_05_ctf_toolkit.py
+```
+
+### Watchdog 24/7
+
+```bash
+# Configurar qué bot manejar (en .env):
+# BOT_SCRIPT=bots/telegram/echo_bot.py
+# RESTART_DELAY=5
+# MAX_RESTARTS_PER_HOUR=10
+
+python watchdog_bot.py
+```
 
 ---
 
 ## 🔐 Manejo de credenciales
 
-**REGLA DE ORO**: nunca pongas tokens, contraseñas o API keys directamente en el código.
+**REGLA DE ORO: NUNCA escribas tokens, contraseñas o API keys directamente en el código.**
 
-- Los tokens se guardan en `.env` (en la raíz del proyecto).
-- Las credenciales del panel admin se guardan en `.credentials.json` (archivo separado, con ID único).
-- Ambos archivos están en `.gitignore` y **nunca** se suben a Git.
+- Todos los tokens van en `.env` (en la raíz del proyecto).
+- El `.env` está en `.gitignore` — nunca se sube a Git.
+- Las credenciales del panel admin se guardan en `data/credentials/` (separadas del código).
+- Gestioná los tokens desde el Panel Admin (`/admin`) — se sincronizan al `.env` automáticamente.
 
-Variables de entorno típicas:
+**Ejemplo de `.env`:**
 ```env
 TELEGRAM_BOT_TOKEN=tu_token_aqui
 TELEGRAM_OWNER_ID=tu_id_aqui
 WHATSAPP_API_KEY=tu_api_key_aqui
 WHATSAPP_PHONE_NUMBER_ID=tu_numero_aqui
-OPENAI_API_KEY=tu_key_aqui   # opcional, para bots con IA
+OPENAI_API_KEY=tu_key_aqui
+ANTHROPIC_API_KEY=tu_key_aqui
+```
+
+---
+
+## 🔑 Primer login — Seguridad del panel
+
+Al arrancar el servidor API por **primera vez**, se genera automáticamente:
+- Un usuario `admin` con una **contraseña aleatoria** de 16 caracteres.
+- La contraseña aparece **en la pantalla de login del panel** para que puedas copiarla.
+- **No se vuelve a mostrar** después del primer acceso.
+- Ingresá, andá a `/admin` y **cambiala por una contraseña tuya**.
+
+Si olvidás la contraseña:
+```bash
+# Borrar las credenciales y reiniciar para generar una nueva clave
+rm -rf data/credentials/
+# Reiniciar el servidor API
 ```
 
 ---
 
 ## ⏰ Modo 24×7 (corriendo en local)
 
-Para mantener un bot encendido todo el día en tu propia PC:
+Usá el watchdog incluido:
 
-- **Watchdog incluido** (`scripts/watchdog.py`): reinicia el bot si se cae.
-- **Inicio automático** con el sistema:
-  - Linux: servicio `systemd`
-  - macOS: `launchd`
-  - Windows: Task Scheduler
-- **Salida a internet** (para webhooks): usa **ngrok** o **cloudflared** (ambos con plan gratuito).
+```bash
+# En .env:
+# BOT_SCRIPT=bots/telegram/echo_bot.py
+# RESTART_DELAY=5
+# MAX_RESTARTS_PER_HOUR=10
+# WATCHDOG_NOTIFY_TOKEN=tu_token_bot  (opcional — para recibir alertas)
+# WATCHDOG_NOTIFY_CHAT=tu_chat_id     (opcional)
 
-Documentación detallada en `docs/24x7-local.md` (próximamente).
+python watchdog_bot.py
+```
+
+Para inicio automático con el sistema operativo, consultá `docs/24x7-local.md` (próximamente).
 
 ---
 
 ## ⚖️ Aviso legal y ético — IMPORTANTE
 
-Las plantillas de **CTF y OSINT** incluyen capacidades de análisis de URLs, web scraping, detección de formularios y pruebas didácticas de inyección SQL.
+Las plantillas de **CTF y OSINT** incluyen capacidades de análisis de IPs, DNS, codificaciones y técnicas de CTF.
 
 **Estas herramientas son SOLO para:**
-- ✅ Sistemas que tú mismo administras.
-- ✅ Laboratorios CTF autorizados (HackTheBox, TryHackMe, PortSwigger Web Security Academy, etc.).
+- ✅ Sistemas que vos mismo administrás.
+- ✅ Laboratorios CTF autorizados (HackTheBox, TryHackMe, PortSwigger, etc.).
 - ✅ Programas de Bug Bounty con autorización explícita.
-- ✅ Pruebas en entornos educativos controlados.
+- ✅ Entornos educativos controlados.
 
-**Está prohibido y es delito en casi todos los países usarlas para:**
-- ❌ Atacar sitios o sistemas de terceros sin autorización por escrito.
-- ❌ Acceder a información a la que no tienes derecho.
+**Está prohibido y es delito usarlas para:**
+- ❌ Atacar sistemas de terceros sin autorización escrita.
+- ❌ Acceder a información sin autorización.
 - ❌ Cualquier actividad ilegal.
-
-Cada plantilla CTF/OSINT incluye un disclaimer en su cabecera. **Al usar este proyecto declaras que entiendes y aceptas estas condiciones.** Los autores no se responsabilizan por usos indebidos.
 
 ---
 
 ## 🗺️ Roadmap
 
-- [x] **Fase 0**: Setup base, README, vinculación de repo.
-- [ ] **Fase 1**: Panel admin con login, modo oscuro/claro + atenuador, responsive, ES/EN.
-- [ ] **Fase 2**: Auditar las plantillas existentes y documentar paso a paso.
-- [ ] **Fase 3**: 5 plantillas Telegram + 5 WhatsApp con agente IA.
-- [ ] **Fase 4**: 5 plantillas Telegram + 5 WhatsApp para CTF/OSINT (con disclaimer).
-- [ ] **Fase 5**: Menú CTF/OSINT en panel admin con selector de herramientas.
-- [ ] **Fase 6**: Modo local 24×7 con watchdog y autoinicio.
-- [ ] **Fase 7**: Empaquetado descargable (`install.sh` / `install.bat`) y generador de `.env`.
+- [x] **Fase 0** — Setup base, README, vinculación de repo.
+- [x] **Fase 1** — Panel admin con login, modo oscuro/claro + atenuador, responsive, ES/EN, tokens.
+- [x] **Fase 2** — Auditoría y documentación de plantillas existentes (14 Telegram + 10 WhatsApp en `.py`).
+- [x] **Fase 3** — 5 agentes IA Telegram + 5 agentes IA WhatsApp (OpenAI, Anthropic, RAG, Vision, WebSearch).
+- [x] **Fase 4** — 5 plantillas Telegram CTF/OSINT + 5 WhatsApp CTF/OSINT (con disclaimer ético).
+- [ ] **Fase 5** — Menú CTF/OSINT en panel admin con selector de herramientas.
+- [x] **Fase 6** — Modo local 24×7 con watchdog y notificaciones Telegram.
+- [ ] **Fase 7** — Empaquetado descargable (`install.sh` / `install.bat`) y generador de `.env`.
 
 ---
 
@@ -172,19 +317,20 @@ Cada plantilla CTF/OSINT incluye un disclaimer en su cabecera. **Al usar este pr
 
 **Panel web:**
 - TypeScript 5.9, React 19, Vite, wouter, TanStack Query
-- TailwindCSS, shadcn/ui (Radix), framer-motion, lucide-react
+- TailwindCSS, shadcn/ui (Radix), lucide-react
 
 **API local:**
-- Express 5, PostgreSQL + Drizzle ORM (opcional, para historial)
-- Zod, Orval (codegen desde OpenAPI)
+- Express 5, Node.js 20+
+- Zod, bcryptjs, cookie-parser, pino
 
 **Bots:**
 - Python 3.11+
-- `python-telegram-bot`, `requests`, `beautifulsoup4`, `python-dotenv`
-- `openai` o `anthropic` para plantillas con IA
+- `python-telegram-bot`, `flask`, `twilio`, `requests`, `python-dotenv`
+- `openai`, `anthropic` para plantillas con IA
+- `dnspython`, `python-whois` para CTF/OSINT
 
 **Tooling:**
-- pnpm workspaces, Node 24
+- pnpm workspaces, Node 20+
 
 ---
 
@@ -192,21 +338,23 @@ Cada plantilla CTF/OSINT incluye un disclaimer en su cabecera. **Al usar este pr
 
 | Problema | Solución |
 |---|---|
-| **Puerto ocupado** | Cambia `PORT` en `.env` o cierra la app que lo usa. |
-| **Error `python-telegram-bot` no instalado** | Asegúrate de hacer `pip install -r bots/requirements.txt`. |
-| **El bot no responde** | Verifica que `TELEGRAM_BOT_TOKEN` esté bien en `.env` y que el bot esté activo en BotFather. |
-| **WhatsApp no envía** | La API oficial requiere número verificado en Meta Business y plantillas aprobadas. |
-| **Cambios en el panel no se ven** | Reinicia el servidor con Ctrl+C y `pnpm run dev` de nuevo. |
-
----
-
-## 📜 Licencia
-
-Por definir. Mientras tanto: uso personal y educativo.
+| **Puerto ocupado** | Cambiá `PORT` en `.env` o cerrá la app que lo usa. |
+| **No aparece la contraseña inicial** | Revisá los logs del servidor API en la terminal — también se imprime ahí. |
+| **Bot no responde** | Verificá que `TELEGRAM_BOT_TOKEN` esté bien en `.env`. |
+| **WhatsApp no recibe** | El webhook necesita URL pública — usá ngrok o cloudflared. |
+| **Olvidé la contraseña del panel** | Borrá `data/credentials/` y reiniciá el servidor API. |
+| **Error pip install** | Asegurate de usar Python 3.11+: `python --version`. |
 
 ---
 
 ## 🙏 Créditos
 
-- Proyecto original creado por **AlbertiJ** con Replit AI.
-- Mejoras y reorientación a uso local en curso.
+- **Juan Alberti** — Dueño del proyecto.
+- **Replit (Rocio)** — IA asistente, desarrollo de plantillas y panel web.
+- **Oscar Pablo Gonzales** — Colaborador, Fases 1-3 (panel admin, auditoría, agentes IA).
+
+---
+
+## 📜 Licencia
+
+Uso personal y educativo. Licencia formal por definir.
