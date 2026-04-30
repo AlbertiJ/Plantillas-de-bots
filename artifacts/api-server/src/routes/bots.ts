@@ -10,6 +10,7 @@ import {
   startBot, stopBot, sendInput, getRun, getAllRuns, REPO_ROOT,
 } from "../lib/bot-runner";
 import { logStart, logStop, getAll, getStats } from "../lib/activity-store";
+import { getTokens, TOKEN_KEYS } from "../lib/tokens-store";
 
 const router = Router();
 
@@ -189,6 +190,17 @@ router.get("/bots/status", (_req: Request, res: Response) => {
     envExists: existsSync(resolve(REPO_ROOT, ".env")),
     checkedAt: new Date().toISOString(),
   });
+});
+
+// ── GET /bots/token-status — qué tokens del .env están configurados (sin revelar valores) ─────
+router.get("/bots/token-status", (_req: Request, res: Response) => {
+  const tokens = getTokens();
+  const status: Record<string, boolean> = {};
+  for (const k of TOKEN_KEYS) {
+    const v = tokens[k];
+    status[k] = typeof v === "string" && v.trim().length > 0;
+  }
+  res.json({ status });
 });
 
 export default router;
