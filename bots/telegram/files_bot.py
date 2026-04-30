@@ -1,76 +1,55 @@
+#!/usr/bin/env python3
 """
-Bot descargador de archivos para Telegram.
-
-Recibe fotos o documentos enviados por usuarios y los guarda en la
-carpeta `downloads/`. Util como base para bots de procesamiento de
-archivos (OCR, parsing de PDFs, analisis de Excels, etc.).
-
-Uso:
-    python bots/telegram/files_bot.py
-
-Requisitos en .env:
-    TELEGRAM_BOT_TOKEN
+files_bot.py — Bot para recibir y procesar archivos en Telegram
+MODIFICAR: agregar procesamiento personalizado en handle_photo() y handle_document().
 """
-
-import os
-import sys
-from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
+import logging, os
 from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-from bots.shared.env import require_env
-from bots.shared.logger import get_logger
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-logger = get_logger(__name__)
+async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "\U0001F4C2 Bot de Archivos\n\nEnviame:\n- Una foto\n- Un documento\n- Un audio"
+    )
 
-# MODIFICAR: cambia 'downloads' por la ruta donde quieres guardar los archivos.
-DOWNLOAD_DIR = "downloads"
-os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+async def handle_photo(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    photo = update.message.photo[-1]
+    # MODIFICAR: descargar y procesar la imagen
+    logger.info("Foto recibida: %s (%.1f KB)", photo.file_id, photo.file_size / 1024)
+    await update.message.reply_text(
+        f"\U0001F5BC Foto recibida\n"
+        f"Resolución: {photo.width}x{photo.height}px\n"
+        f"Tamaño: {photo.file_size / 1024:.1f} KB"
+    )
 
+async def handle_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    doc = update.message.document
+    # MODIFICAR: procesar según mime_type
+    logger.info("Documento: %s (%s)", doc.file_name, doc.mime_type)
+    await update.message.reply_text(
+        f"\U0001F4C4 Documento\nNombre: {doc.file_name}\n"
+        f"Tipo: {doc.mime_type}\nTamaño: {doc.file_size / 1024:.1f} KB"
+    )
 
-async def download_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # Telegram envia fotos en multiples tamanos. El ultimo es el de mayor resolucion.
-    photo_file = await update.message.photo[-1].get_file()
-
-    # MODIFICAR: cambia el nombre del archivo o sube directamente a un bucket S3/GCS.
-    file_path = f"{DOWNLOAD_DIR}/photo_{update.message.message_id}.jpg"
-    await photo_file.download_to_drive(file_path)
-
-    logger.info("Foto guardada en %s", file_path)
-    # MODIFICAR: personaliza el mensaje de confirmacion al usuario.
-    await update.message.reply_text("Foto recibida y guardada.")
-
-
-async def download_document(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
-    document = update.message.document
-    doc_file = await document.get_file()
-
-    file_path = f"{DOWNLOAD_DIR}/{document.file_name}"
-    await doc_file.download_to_drive(file_path)
-
-    # MODIFICAR: puedes analizar el documento (PDF, Excel) despues de descargarlo.
-    logger.info("Documento guardado en %s", file_path)
-    await update.message.reply_text(f"Documento '{document.file_name}' recibido.")
-
+async def handle_audio(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    audio = update.message.audio or update.message.voice
+    await update.message.reply_text(
+        f"\U0001F3A7 Audio recibido\nDuración: {audio.duration}s"
+    )
 
 def main() -> None:
-    token = require_env("TELEGRAM_BOT_TOKEN")
-    application = Application.builder().token(token).build()
-
-    # MODIFICAR: agrega mas filtros para aceptar solo ciertos tipos de archivos.
-    # Ejemplo: filters.Document.PDF para aceptar solo PDFs.
-    application.add_handler(MessageHandler(filters.PHOTO, download_photo))
-    application.add_handler(MessageHandler(filters.Document.ALL, download_document))
-
-    logger.info("Bot descargador iniciado. Carpeta destino: %s", DOWNLOAD_DIR)
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
+    if not TOKEN:
+        raise ValueError("TELEGRAM_BOT_TOKEN no está configurado en .env")
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    app.add_handler(MessageHandler(filters.AUDIO | filters.VOICE, handle_audio))
+    app.run_polling()
 
 if __name__ == "__main__":
     main()

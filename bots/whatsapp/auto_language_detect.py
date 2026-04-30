@@ -1,88 +1,79 @@
+#!/usr/bin/env python3
 """
-Deteccion automatica de idioma para WhatsApp (Twilio + Flask).
-
-Detecta el idioma del usuario por palabras clave y responde en el mismo
-idioma. Soporta espanol, ingles y portugues. Cachea el idioma detectado
-por usuario para no re-detectar en cada mensaje.
-
-Uso:
-    python bots/whatsapp/auto_language_detect.py
+auto_language_detect.py — Bot detección de idioma WhatsApp
+MODIFICAR: instalar langdetect para detección más precisa.
+Requiere: WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN, WHATSAPP_ACCESS_TOKEN
+pip install flask requests
 """
+import logging, os, requests
+from flask import Flask, request, jsonify
 
-import sys
-from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from flask import Flask, request
-from twilio.twiml.messaging_response import MessagingResponse
-
-from bots.shared.env import get_env
-from bots.shared.logger import get_logger
-
-logger = get_logger(__name__)
-
+PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_token_secreto")
+ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+PORT         = int(os.getenv("PORT", "5000"))
+WA_API_URL   = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
 app = Flask(__name__)
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# MODIFICAR: agrega mas idiomas y palabras clave para una deteccion mas precisa.
-LANGUAGE_KEYWORDS = {
-    "es": ["hola", "gracias", "ayuda", "como", "que", "buenas", "buen dia", "buenas noches"],
-    "en": ["hello", "thanks", "help", "how", "what", "good morning", "good night", "hey"],
-    "pt": ["ola", "obrigado", "ajuda", "como", "que", "bom dia", "boa tarde"],
-}
+def send_message(to: str, text: str) -> dict:
+    """MODIFICAR: agregar más tipos de mensajes (imagen, template, etc.)"""
+    if not ACCESS_TOKEN or not PHONE_ID:
+        logger.error("ACCESS_TOKEN o PHONE_ID no configurados")
+        return {}
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text[:4000]}}
+    r = requests.post(WA_API_URL, headers=headers, json=payload, timeout=10)
+    return r.json()
 
-# MODIFICAR: personaliza las respuestas para cada idioma.
+@app.route("/webhook", methods=["GET"])
+def verify():
+    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+        return request.args.get("hub.challenge", ""), 200
+    return "Token inválido", 403
+
+
+# MODIFICAR: agregar más idiomas y respuestas
 RESPONSES = {
-    "es": {
-        "greeting": "Hola! Hablo espanol. En que te puedo ayudar?",
-        "fallback": "Lo siento, no entendi eso.",
-    },
-    "en": {
-        "greeting": "Hello! I speak English. How can I help you?",
-        "fallback": "Sorry, I didn't understand that.",
-    },
-    "pt": {
-        "greeting": "Ola! Eu falo portugues. Como posso ajudar?",
-        "fallback": "Desculpe, nao entendi isso.",
-    },
+    "es": {"greet": "Hola! Detecté español. ¿En qué te puedo ayudar?", "bye": "Hasta luego!", "default": "Mensaje en español."},
+    "en": {"greet": "Hello! I detected English. How can I help?", "bye": "Goodbye!", "default": "Message in English."},
+    "pt": {"greet": "Olá! Detectei português. Como posso ajudar?", "bye": "Até logo!", "default": "Mensagem em português."},
 }
-
-# MODIFICAR: en produccion guarda esta cache en una DB para no perderla
-# al reiniciar el proceso.
-user_language_cache: dict[str, str] = {}
-
 
 def detect_language(text: str) -> str:
-    text_lower = text.lower()
-    scores = {lang: 0 for lang in LANGUAGE_KEYWORDS}
-    for lang, keywords in LANGUAGE_KEYWORDS.items():
-        for word in keywords:
-            if word in text_lower:
-                scores[lang] += 1
-    best = max(scores, key=scores.get)
-    # MODIFICAR: ajusta el umbral minimo para mayor precision de deteccion.
-    return best if scores[best] > 0 else "en"
+    """MODIFICAR: usar langdetect para mayor precisión: pip install langdetect"""
+    tl     = text.lower()
+    es_w   = ["hola","gracias","como","para","que","esta","bien","estás","cómo"]
+    en_w   = ["hello","thanks","how","what","the","and","for","good","please"]
+    pt_w   = ["olá","obrigado","como","bom","para","que","está","boa","você"]
+    scores = {"es": sum(w in tl for w in es_w), "en": sum(w in tl for w in en_w), "pt": sum(w in tl for w in pt_w)}
+    best   = max(scores, key=scores.get)
+    return best if scores[best] > 0 else "es"
 
-
-@app.route("/whatsapp", methods=["POST"])
-def whatsapp_webhook():
-    incoming_msg = request.values.get("Body", "").strip()
-    sender = request.values.get("From", "")
-
-    detected_lang = user_language_cache.get(sender) or detect_language(incoming_msg)
-    user_language_cache[sender] = detected_lang
-    logger.info("Idioma detectado para %s: %s", sender, detected_lang)
-
-    resp_dict = RESPONSES.get(detected_lang, RESPONSES["en"])
-
-    resp = MessagingResponse()
-    msg = resp.message()
-    msg.body(resp_dict["greeting"])
-
-    return str(resp)
-
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json()
+    try:
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    if msg.get("type") != "text": continue
+                    sender = msg["from"]
+                    text   = msg["text"]["body"].strip()
+                    lang   = detect_language(text)
+                    resp   = RESPONSES.get(lang, RESPONSES["es"])
+                    tl     = text.lower()
+                    if any(w in tl for w in ["hola","hello","olá","hi","hey","oi"]):
+                        reply = resp["greet"]
+                    elif any(w in tl for w in ["bye","adios","chau","hasta","até"]):
+                        reply = resp["bye"]
+                    else:
+                        reply = resp["default"] + f" [Idioma: {lang.upper()}]"
+                    send_message(sender, reply)
+    except Exception as e:
+        logger.error("Error: %s", e)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
-    port = int(get_env("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=PORT, debug=False)

@@ -1,75 +1,66 @@
+#!/usr/bin/env python3
 """
-Enrutador de comandos para WhatsApp (Twilio + Flask).
-
-Dirige los mensajes entrantes a diferentes funciones segun el comando
-o palabra clave detectada. Util como esqueleto de bots con multiples
-funciones.
-
-Uso:
-    python bots/whatsapp/command_router.py
+command_router.py — Enrutador de comandos WhatsApp
+MODIFICAR: agregar nuevos comandos como funciones y registrarlos en COMMANDS.
+Requiere: WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN, WHATSAPP_ACCESS_TOKEN
+pip install flask requests
 """
+import logging, os, requests
+from flask import Flask, request, jsonify
 
-import sys
-from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from flask import Flask, request
-from twilio.twiml.messaging_response import MessagingResponse
-
-from bots.shared.env import get_env
-from bots.shared.logger import get_logger
-
-logger = get_logger(__name__)
-
+PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_token_secreto")
+ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+PORT         = int(os.getenv("PORT", "5000"))
+WA_API_URL   = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
 app = Flask(__name__)
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+def send_message(to: str, text: str) -> dict:
+    """MODIFICAR: agregar más tipos de mensajes (imagen, template, etc.)"""
+    if not ACCESS_TOKEN or not PHONE_ID:
+        logger.error("ACCESS_TOKEN o PHONE_ID no configurados")
+        return {}
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text[:4000]}}
+    r = requests.post(WA_API_URL, headers=headers, json=payload, timeout=10)
+    return r.json()
 
-# MODIFICAR: personaliza el mensaje de saludo con el nombre de tu servicio.
-def handle_hello(sender: str) -> str:
-    return "Hola! En que te puedo ayudar hoy?"
+@app.route("/webhook", methods=["GET"])
+def verify():
+    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+        return request.args.get("hub.challenge", ""), 200
+    return "Token inválido", 403
 
+import datetime
 
-# MODIFICAR: actualiza la lista de comandos para reflejar los que ofreces.
-def handle_help(sender: str) -> str:
-    return (
-        "Comandos disponibles:\n"
-        "- hola: Saludo\n"
-        "- estado: Estado del sistema\n"
-        "- ayuda: Este menu"
-    )
+# MODIFICAR: agregar tus comandos aquí
+def cmd_help(sender, args): return "Comandos:\n!help\n!info\n!ping\n!hora"
+def cmd_info(sender, args): return "WhatsApp Bot v1.0"
+def cmd_ping(sender, args): return "Pong! El bot responde."
+def cmd_hora(sender, args): return f"Hora: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
 
+# MODIFICAR: registrar tus comandos aquí
+COMMANDS = {"!help": cmd_help, "!info": cmd_info, "!ping": cmd_ping, "!hora": cmd_hora}
 
-# MODIFICAR: aqui puedes verificar APIs externas, bases de datos, etc.
-def handle_status(sender: str) -> str:
-    return "Todos los sistemas operativos!"
-
-
-@app.route("/whatsapp", methods=["POST"])
-def whatsapp_webhook():
-    # MODIFICAR: agrega mas comandos al if/elif segun lo que tu bot deba hacer.
-    incoming_msg = request.values.get("Body", "").strip().lower()
-    sender = request.values.get("From", "")
-    logger.info("Comando '%s' de %s", incoming_msg, sender)
-
-    resp = MessagingResponse()
-    msg = resp.message()
-
-    if incoming_msg in ["hola", "hello", "hi", "hey"]:
-        response_text = handle_hello(sender)
-    elif incoming_msg in ["ayuda", "help"]:
-        response_text = handle_help(sender)
-    elif incoming_msg in ["estado", "status"]:
-        response_text = handle_status(sender)
-    else:
-        # MODIFICAR: cambia el mensaje fallback por uno que tenga sentido para tu bot.
-        response_text = "No entendi ese comando. Envia 'ayuda' para ver opciones."
-
-    msg.body(response_text)
-    return str(resp)
-
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json()
+    try:
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    if msg.get("type") != "text": continue
+                    sender  = msg["from"]
+                    parts   = msg["text"]["body"].strip().split(None, 1)
+                    cmd     = parts[0].lower()
+                    args    = parts[1] if len(parts) > 1 else ""
+                    handler = COMMANDS.get(cmd)
+                    send_message(sender, handler(sender, args) if handler else "Comando desconocido. Usá !help")
+    except Exception as e:
+        logger.error("Error: %s", e)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
-    port = int(get_env("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=PORT, debug=False)

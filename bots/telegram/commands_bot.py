@@ -1,76 +1,48 @@
+#!/usr/bin/env python3
 """
-Bot con manejador de comandos para Telegram.
-
-Responde a comandos especificos como /start, /help, /about, /ping.
-Util como esqueleto de bots con menu de comandos.
-
-Uso:
-    python bots/telegram/commands_bot.py
-
-Requisitos en .env:
-    TELEGRAM_BOT_TOKEN
+commands_bot.py — Bot de Comandos personalizados para Telegram
+MODIFICAR: agregar nuevos comandos con add_handler() en main().
 """
-
-import sys
-from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
+import logging, os, platform, datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
-from bots.shared.env import require_env
-from bots.shared.logger import get_logger
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-logger = get_logger(__name__)
-
-
-# MODIFICAR: personaliza este mensaje de bienvenida con el nombre de tu bot.
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Bienvenido/a! Usa /help para ver los comandos disponibles."
+        "\U0001F916 Bot de comandos activo.\n\n"
+        "Comandos:\n/start /help /info /ping"
     )
 
-
-# MODIFICAR: actualiza la lista de comandos para reflejar los que tiene tu bot.
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    help_text = (
-        "Comandos disponibles:\n"
-        "/start - Iniciar el bot\n"
-        "/help  - Mostrar este mensaje\n"
-        "/about - Info sobre este bot\n"
-        "/ping  - Verificar si el bot esta activo"
-    )
-    await update.message.reply_text(help_text)
-
-
-# MODIFICAR: agrega aqui la descripcion real de tu bot, su proposito y creador.
-async def about_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def help_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Soy un bot de demostracion construido con python-telegram-bot v20+."
+        "/start\n/help\n/info — Info del sistema\n/ping — Verificar respuesta"
     )
 
+async def info(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    # MODIFICAR: agregar información personalizada de tu sistema
+    text = (
+        f"\U0001F5A5 Sistema: {platform.system()} {platform.release()}\n"
+        f"\U0001F40D Python: {platform.python_version()}\n"
+        f"\U0001F554 Hora: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+    await update.message.reply_text(text)
 
-async def ping_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    # MODIFICAR: puedes agregar metricas reales como uptime, uso de CPU
-    # o estado de la base de datos.
-    await update.message.reply_text("Pong!")
-
+async def ping(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("\U0001F3D3 Pong!")
 
 def main() -> None:
-    token = require_env("TELEGRAM_BOT_TOKEN")
-    application = Application.builder().token(token).build()
-
-    # MODIFICAR: agrega aqui todos los comandos que tu bot soportara.
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("about", about_command))
-    application.add_handler(CommandHandler("ping", ping_command))
-
-    logger.info("Bot de comandos iniciado.")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
+    if not TOKEN:
+        raise ValueError("TELEGRAM_BOT_TOKEN no está configurado en .env")
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("help", help_cmd))
+    app.add_handler(CommandHandler("info", info))
+    app.add_handler(CommandHandler("ping", ping))
+    app.run_polling()
 
 if __name__ == "__main__":
     main()

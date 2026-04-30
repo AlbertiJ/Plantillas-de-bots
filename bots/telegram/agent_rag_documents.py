@@ -1,164 +1,94 @@
+#!/usr/bin/env python3
 """
-Agente RAG sobre documentos locales (Telegram).
-
-Indexa todos los .txt y .md de `data/rag_docs/` con TF-IDF en memoria,
-busca los pasajes mas relevantes a la pregunta del usuario y los pasa
-como contexto a OpenAI para que responda.
-
-No requiere bases vectoriales externas (chromadb, pinecone, etc.). Usa
-solo Python estandar + openai.
-
-Uso:
-    1. Pon tus .txt y .md en data/rag_docs/
-    2. python bots/telegram/agent_rag_documents.py
-
-Requisitos en .env:
-    TELEGRAM_BOT_TOKEN
-    OPENAI_API_KEY
+agent_rag_documents.py — Agente RAG: indexa PDF/TXT y responde preguntas
+MODIFICAR: ajustar CHUNK_SIZE y MAX_CHUNKS para balancear calidad/costo.
+pip install openai python-telegram-bot PyPDF2
+Requiere: TELEGRAM_BOT_TOKEN, OPENAI_API_KEY
 """
-
-import math
-import re
-import sys
-from collections import Counter
-from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from openai import OpenAI
+import logging, os, io
+from openai import AsyncOpenAI
 from telegram import Update
-from telegram.ext import (
-    Application,
-    MessageHandler,
-    filters,
-    ContextTypes,
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-from bots.shared.env import get_env, require_env
-from bots.shared.logger import get_logger
+TOKEN      = os.getenv("TELEGRAM_BOT_TOKEN", "")
+OPENAI_KEY = os.getenv("OPENAI_API_KEY", "")
+CHUNK_SIZE = 2000   # MODIFICAR: tamaño de chunk en caracteres
+MAX_CHUNKS = 5      # MODIFICAR: chunks a enviar al modelo por consulta
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
+client = AsyncOpenAI(api_key=OPENAI_KEY) if OPENAI_KEY else None
+user_docs: dict[int, list[str]] = {}
 
-logger = get_logger(__name__)
+def chunk_text(text: str) -> list[str]:
+    return [text[i:i + CHUNK_SIZE] for i in range(0, len(text), CHUNK_SIZE - 200)]
 
-client = OpenAI(api_key=require_env("OPENAI_API_KEY"))
-MODEL = get_env("OPENAI_MODEL", "gpt-4o-mini")
-
-DOCS_DIR = Path("data/rag_docs")
-DOCS_DIR.mkdir(parents=True, exist_ok=True)
-
-# MODIFICAR: tamano del chunk (palabras) y solapamiento.
-CHUNK_WORDS = 200
-OVERLAP = 40
-TOP_K = 4
-
-_token_re = re.compile(r"[a-z0-9]+", re.IGNORECASE)
-
-
-def tokenize(text: str) -> list[str]:
-    return [t.lower() for t in _token_re.findall(text)]
-
-
-def chunk_text(text: str, source: str) -> list[dict]:
-    words = text.split()
-    chunks = []
-    i = 0
-    while i < len(words):
-        piece = " ".join(words[i:i + CHUNK_WORDS])
-        chunks.append({"source": source, "text": piece, "tokens": tokenize(piece)})
-        i += CHUNK_WORDS - OVERLAP
-    return chunks
-
-
-def build_index() -> tuple[list[dict], dict]:
-    chunks: list[dict] = []
-    for path in sorted(DOCS_DIR.glob("**/*")):
-        if path.suffix.lower() not in (".txt", ".md"):
-            continue
-        try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
-        except Exception:
-            continue
-        chunks.extend(chunk_text(text, str(path.relative_to(DOCS_DIR))))
-
-    # IDF
-    df: Counter = Counter()
-    for c in chunks:
-        for t in set(c["tokens"]):
-            df[t] += 1
-    n = max(len(chunks), 1)
-    idf = {t: math.log((n + 1) / (cnt + 1)) + 1 for t, cnt in df.items()}
-    return chunks, idf
-
-
-def score(chunk: dict, query_tokens: list[str], idf: dict) -> float:
-    cnt = Counter(chunk["tokens"])
-    total = max(len(chunk["tokens"]), 1)
-    s = 0.0
-    for t in query_tokens:
-        if t in cnt:
-            tf = cnt[t] / total
-            s += tf * idf.get(t, 0.0)
-    return s
-
-
-def search(query: str, chunks: list[dict], idf: dict) -> list[dict]:
-    qt = tokenize(query)
-    scored = [(score(c, qt, idf), c) for c in chunks]
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [c for s, c in scored[:TOP_K] if s > 0]
-
-
-# Indice cargado al inicio. MODIFICAR: rebuild si cambias docs en caliente.
-CHUNKS, IDF = build_index()
-logger.info("Indice RAG: %d chunks de %s", len(CHUNKS), DOCS_DIR)
-
-
-async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.message.text
-    if not CHUNKS:
-        await update.message.reply_text(
-            f"No hay documentos en {DOCS_DIR}. Agrega .txt o .md ahi."
-        )
-        return
-
-    hits = search(query, CHUNKS, IDF)
-    if not hits:
-        await update.message.reply_text("No encontre nada relevante en mis documentos.")
-        return
-
-    context_text = "\n\n".join(
-        f"[{i+1}] ({h['source']})\n{h['text']}" for i, h in enumerate(hits)
-    )
-    messages = [
-        {"role": "system", "content": (
-            "Responde la pregunta usando SOLO la informacion del contexto. "
-            "Si la respuesta no esta, dilo. Cita las fuentes con [1], [2], etc. "
-            "Responde en espanol."
-        )},
-        {"role": "user", "content": f"Pregunta: {query}\n\nContexto:\n{context_text}"},
-    ]
-
+def extract_pdf(data: bytes) -> str:
     try:
-        completion = client.chat.completions.create(
-            model=MODEL, messages=messages, temperature=0.2
-        )
-        reply = completion.choices[0].message.content.strip()
-    except Exception as e:
-        logger.error("Error OpenAI: %s", e)
-        await update.message.reply_text("El modelo fallo. Reintenta.")
+        import PyPDF2
+        reader = PyPDF2.PdfReader(io.BytesIO(data))
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+    except ImportError:
+        return "[PyPDF2 no instalado — pip install PyPDF2]"
+
+async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "\U0001F4DA Agente RAG\n\n"
+        "1. Enviame un PDF o TXT\n2. Preguntá con /ask <pregunta>\n/clear — Borrar docs"
+    )
+
+async def handle_document(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    doc = update.message.document
+    uid = update.effective_user.id
+    if doc.mime_type not in ("application/pdf", "text/plain"):
+        await update.message.reply_text("Solo acepto PDF o TXT.")
         return
+    await update.message.reply_text("\U000023F3 Procesando...")
+    file      = await ctx.bot.get_file(doc.file_id)
+    file_data = await file.download_as_bytearray()
+    text      = extract_pdf(bytes(file_data)) if doc.mime_type == "application/pdf" else file_data.decode("utf-8", errors="replace")
+    chunks    = chunk_text(text)
+    user_docs[uid] = chunks
+    await update.message.reply_text(f"\U0001F4DA Indexado: {doc.file_name}\n{len(chunks)} chunks. Usá /ask <pregunta>")
 
-    sources = "\n".join(f"[{i+1}] {h['source']}" for i, h in enumerate(hits))
-    await update.message.reply_text(f"{reply}\n\nFuentes:\n{sources}")
+async def ask(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not client:
+        await update.message.reply_text("OPENAI_API_KEY no configurada.")
+        return
+    if not ctx.args:
+        await update.message.reply_text("Uso: /ask tu pregunta")
+        return
+    uid      = update.effective_user.id
+    question = " ".join(ctx.args)
+    chunks   = user_docs.get(uid, [])
+    if not chunks:
+        await update.message.reply_text("No hay documentos cargados.")
+        return
+    await ctx.bot.send_chat_action(update.effective_chat.id, "typing")
+    # MODIFICAR: implementar búsqueda semántica con embeddings para mejor precisión
+    context = "\n---\n".join(chunks[:MAX_CHUNKS])
+    prompt  = f"Contexto:\n{context}\n\nPregunta: {question}\nSi no está en el contexto, decilo."
+    try:
+        resp = await client.chat.completions.create(model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}], max_tokens=800)
+        await update.message.reply_text(f"\U0001F4AC Respuesta:\n\n{resp.choices[0].message.content}")
+    except Exception as e:
+        await update.message.reply_text(f"\U0000274C Error: {e}")
 
+async def clear(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    user_docs.pop(update.effective_user.id, None)
+    await update.message.reply_text("\U0001F5D1 Documentos borrados.")
 
 def main() -> None:
-    token = require_env("TELEGRAM_BOT_TOKEN")
-    app = Application.builder().token(token).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
-    logger.info("Agente RAG iniciado. %d chunks indexados.", len(CHUNKS))
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
-
+    if not TOKEN:
+        raise ValueError("TELEGRAM_BOT_TOKEN no está configurado en .env")
+    if not OPENAI_KEY:
+        raise ValueError("OPENAI_API_KEY no está configurado en .env")
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("ask", ask))
+    app.add_handler(CommandHandler("clear", clear))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+    app.run_polling()
 
 if __name__ == "__main__":
     main()

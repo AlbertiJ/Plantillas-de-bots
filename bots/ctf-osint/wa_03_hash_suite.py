@@ -1,54 +1,70 @@
-# bots/ctf-osint/wa_03_hash_suite.py
-# ╔══════════════════════════════════════════════════════════════╗
-# ║  DISCLAIMER ÉTICO — Solo uso educativo y entornos autorizados║
-# ║  Desarrollado por: Replit (Rocio) — IA Asistente             ║
-# ║  Dueño del código: Juan Alberti                              ║
-# ║  Repositorio: https://github.com/AlbertiJ/Plantillas-de-bots ║
-# ╚══════════════════════════════════════════════════════════════╝
-# PROPÓSITO: Bot WhatsApp — Hash Suite (generar + identificar)
-# Ejecución: python bots/ctf-osint/wa_03_hash_suite.py
+#!/usr/bin/env python3
+"""
+wa_03_hash_suite.py — CTF: Suite de hashes para WhatsApp
+MODIFICAR: agregar más algoritmos según se necesiten en CTF.
+pip install flask requests
+"""
+import logging, os, requests
+from flask import Flask, request, jsonify
+
+PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_token_secreto")
+ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+PORT         = int(os.getenv("PORT", "5000"))
+WA_API_URL   = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
+app = Flask(__name__)
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def send_message(to, text):
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text[:4000]}}
+    requests.post(WA_API_URL, headers=headers, json=payload, timeout=10)
+
+@app.route("/webhook", methods=["GET"])
+def verify():
+    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+        return request.args.get("hub.challenge", ""), 200
+    return "Forbidden", 403
 
 import hashlib, re
-from flask import Flask, request
-from twilio.twiml.messaging_response import MessagingResponse
-from bots.shared.env import get_env
-from bots.shared.logger import get_logger
 
-logger = get_logger(__name__)
-PORT = int(get_env("PORT", "5000"))
-app = Flask(__name__)
+def hashes(text):
+    d = text.encode()
+    return {"MD5": hashlib.md5(d).hexdigest(), "SHA1": hashlib.sha1(d).hexdigest(),
+            "SHA256": hashlib.sha256(d).hexdigest(), "SHA512": hashlib.sha512(d).hexdigest()}
 
-def all_hashes(text: str) -> str:
-    enc = text.encode("utf-8")
-    return (f"MD5:    {hashlib.md5(enc).hexdigest()}\n"
-            f"SHA1:   {hashlib.sha1(enc).hexdigest()}\n"
-            f"SHA256: {hashlib.sha256(enc).hexdigest()}")
-
-def identify_hash(h: str) -> str:
+def identify(h):
     h = h.strip()
-    if not re.match(r'^[a-fA-F0-9]+$', h): return "No parece un hash hexadecimal"
-    return {32:"MD5",40:"SHA-1",64:"SHA-256",128:"SHA-512"}.get(len(h), f"Desconocido ({len(h)} chars)")
+    lengths = {32:"MD5", 40:"SHA1", 56:"SHA224", 64:"SHA256", 96:"SHA384", 128:"SHA512"}
+    if not re.match(r"^[0-9a-fA-F]+$", h):
+        return "No es un hash hexadecimal válido"
+    return lengths.get(len(h), f"Desconocido (longitud {len(h)})")
 
-@app.route("/whatsapp", methods=["POST"])
+@app.route("/webhook", methods=["POST"])
 def webhook():
-    body = request.values.get("Body", "").strip()
-    resp = MessagingResponse()
-    msg = resp.message()
-    parts = body.lower().split(" ", 1)
-    cmd, arg = parts[0], (body.split(" ",1)[1] if len(parts)>1 else "")
-    if cmd in ("menu","inicio"):
-        msg.body("Hash Suite — WhatsApp\n\nhash <texto>     — Todos los hashes\nidentify <hash>  — Identificar tipo\n\n⚠️ Solo uso educativo.")
-    elif cmd == "hash" and arg:
-        msg.body(f"Hashes de: {arg[:30]}\n\n{all_hashes(arg)}")
-    elif cmd == "identify" and arg:
-        msg.body(f"Tipo: {identify_hash(arg)}")
-    else:
-        msg.body("Enviá 'menu' para ver comandos.")
-    return str(resp)
-
-def main():
-    logger.info(f"Bot Hash Suite WhatsApp iniciado en puerto {PORT}...")
-    app.run(host="0.0.0.0", port=PORT, debug=False)
+    data = request.get_json()
+    try:
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    if msg.get("type") != "text": continue
+                    sender = msg["from"]
+                    parts  = msg["text"]["body"].strip().split(None, 1)
+                    cmd    = parts[0].lower() if parts else ""
+                    arg    = parts[1] if len(parts) > 1 else ""
+                    if cmd == "!hash" and arg:
+                        h = hashes(arg)
+                        send_message(sender, f"Hashes de: {arg[:30]}\n" + "\n".join(f"{k}: {v}" for k,v in h.items()))
+                    elif cmd == "!id" and arg:
+                        send_message(sender, f"Tipo: {identify(arg)}")
+                    elif cmd == "!sha256" and arg:
+                        send_message(sender, f"SHA256: {hashlib.sha256(arg.encode()).hexdigest()}")
+                    else:
+                        send_message(sender, "Comandos: !hash <texto>, !id <hash>, !sha256 <texto>")
+    except Exception as e:
+        logger.error("Error: %s", e)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
-    main()
+    app.run(host="0.0.0.0", port=PORT, debug=False)
