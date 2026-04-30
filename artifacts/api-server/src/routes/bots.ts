@@ -1,117 +1,77 @@
-import { Router, type IRouter, type Request, type Response } from "express";
-import { randomUUID } from "node:crypto";
-import { requireAuth } from "../lib/auth-middleware";
-import { BOT_CATALOG, getBotById } from "../lib/bot-catalog";
-import { startBot, stopBot, sendInput, getRun, getAllRuns, getRunningBots } from "../lib/bot-runner";
-import { logStart, logStop, getAll, getStats } from "../lib/activity-store";
+// Rutas para el Lanzador de Bots, Actividad y Estado del sistema.
+// MODIFICAR: adaptar los paths de bots si la estructura del repo cambia.
 
-const router: IRouter = Router();
+import { Router, type Request, type Response } from "express";
+import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { BOT_CATALOG } from "../lib/bot-catalog";
+import { startBot, stopBot, sendInput, getRun, getAllRuns, REPO_ROOT } from "../lib/bot-runner";
+import { recordRun, markRunStopped, getActivityEntries, getStats } from "../lib/activity-store";
 
-// ── Catálogo ──────────────────────────────────────────────
+const router = Router();
 
-/** GET /api/bots — lista todos los bots disponibles */
-router.get("/bots", requireAuth, (_req, res) => {
+// ── GET /bots — lista el catálogo completo ──────────────────────────────────
+router.get("/bots", (_req: Request, res: Response) => {
   res.json({ bots: BOT_CATALOG });
 });
 
-// ── Runs activos ──────────────────────────────────────────
-
-/** GET /api/bots/status — bots corriendo ahora */
-router.get("/bots/status", requireAuth, (_req, res) => {
-  const running = getRunningBots();
-  res.json({
-    running: running.map((r) => ({
-      id: r.id, botId: r.botId, botName: r.botName, pid: r.pid,
-      startedAt: r.startedAt, status: r.status,
-    })),
-  });
-});
-
-/** POST /api/bots/start — inicia un bot */
-router.post("/bots/start", requireAuth, (req, res) => {
-  const { botId } = req.body ?? {};
-  if (!botId || typeof botId !== "string") {
-    res.status(400).json({ error: "botId requerido" });
-    return;
-  }
-  const entry = getBotById(botId);
-  if (!entry) { res.status(404).json({ error: "bot_not_found" }); return; }
-
+// ── POST /bots/start — inicia un bot Python ─────────────────────────────────
+router.post("/bots/start", (req: Request, res: Response) => {
+  const { botId } = req.body as { botId?: string };
+  if (!botId) { res.status(400).json({ error: "botId requerido" }); return; }
+  const entry = BOT_CATALOG.find((b) => b.id === botId);
+  if (!entry) { res.status(404).json({ error: "Bot no encontrado en catálogo" }); return; }
   const run = startBot(entry.id, entry.file, entry.nameEs);
-
-  // Log en actividad
-  logStart({
-    runId: run.id,
-    botId: entry.id,
-    botName: entry.nameEs,
-    category: entry.category,
-    startedAt: run.startedAt,
-    status: "running",
-  });
-
-  // Actualizar actividad al cerrar
-  run.emitter.on("close", (code: number | null) => {
-    logStop(run.id, run.status, code, run.outputLines.length);
-  });
-
-  res.json({
-    runId: run.id,
-    botId: entry.id,
-    botName: entry.nameEs,
-    status: run.status,
-    startedAt: run.startedAt,
-  });
+  recordRun(run.id, entry.id, entry.nameEs, entry.category);
+  res.json({ runId: run.id, botId: run.botId, status: run.status, startedAt: run.startedAt });
 });
 
-/** POST /api/bots/stop/:runId — detiene un bot */
-router.post("/bots/stop/:runId", requireAuth, (req, res) => {
+// ── POST /bots/stop/:runId — detiene un proceso ─────────────────────────────
+router.post("/bots/stop/:runId", (req: Request, res: Response) => {
   const ok = stopBot(req.params.runId);
-  if (!ok) { res.status(404).json({ error: "run_not_found_or_not_running" }); return; }
-  res.json({ ok: true });
+  markRunStopped(req.params.runId, "stopped");
+  res.json({ stopped: ok });
 });
 
-/** POST /api/bots/input/:runId — envía texto a stdin del bot */
-router.post("/bots/input/:runId", requireAuth, (req, res) => {
-  const { line } = req.body ?? {};
-  if (typeof line !== "string") { res.status(400).json({ error: "line requerido" }); return; }
-  const ok = sendInput(req.params.runId, line);
-  if (!ok) { res.status(404).json({ error: "run_not_found" }); return; }
-  res.json({ ok: true });
+// ── POST /bots/input/:runId — envía línea a stdin ───────────────────────────
+router.post("/bots/input/:runId", (req: Request, res: Response) => {
+  const { line } = req.body as { line?: string };
+  const ok = sendInput(req.params.runId, line ?? "");
+  res.json({ sent: ok });
 });
 
-/** GET /api/bots/output/:runId — SSE stream del output del bot */
-router.get("/bots/output/:runId", requireAuth, (req: Request, res: Response) => {
+// ── GET /bots/output/:runId — SSE streaming de salida ───────────────────────
+router.get("/bots/output/:runId", (req: Request, res: Response) => {
   const run = getRun(req.params.runId);
-  if (!run) { res.status(404).json({ error: "run_not_found" }); return; }
+  if (!run) { res.status(404).json({ error: "Run no encontrado" }); return; }
 
-  res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
-  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
   const send = (data: object) => res.write(`data: ${JSON.stringify(data)}\n\n`);
 
-  // Mandar output histórico ya acumulado
-  for (const line of run.outputLines) {
-    send({ type: "line", text: line });
-  }
+  // Enviar líneas históricas
+  run.outputLines.forEach((l) => send({ type: "line", text: l }));
 
-  // Indicar si el proceso ya terminó
   if (run.status !== "running") {
-    send({ type: "close", status: run.status, exitCode: run.exitCode });
+    send({ type: "close", status: run.status });
     res.end();
     return;
   }
 
-  const onLine = (text: string) => send({ type: "line", text });
+  const onLine = (l: string) => send({ type: "line", text: l });
   const onClose = (code: number | null) => {
-    send({ type: "close", status: run.status, exitCode: code });
+    markRunStopped(req.params.runId, (code === 0 || code === null) ? "stopped" : "crashed");
+    send({ type: "close", status: run.status });
     res.end();
   };
 
   run.emitter.on("line", onLine);
-  run.emitter.on("close", onClose);
+  run.emitter.once("close", onClose);
 
   req.on("close", () => {
     run.emitter.off("line", onLine);
@@ -119,11 +79,83 @@ router.get("/bots/output/:runId", requireAuth, (req: Request, res: Response) => 
   });
 });
 
-// ── Actividad ─────────────────────────────────────────────
+// ── GET /bots/activity — historial de ejecuciones ───────────────────────────
+router.get("/bots/activity", (_req: Request, res: Response) => {
+  const runs = getAllRuns();
+  const entries = runs.map((r) => ({
+    runId: r.id,
+    botId: r.botId,
+    botName: r.botName,
+    category: BOT_CATALOG.find((b) => b.id === r.botId)?.category ?? "utility",
+    startedAt: r.startedAt,
+    stoppedAt: r.stoppedAt,
+    status: r.status,
+    exitCode: r.exitCode,
+    lineCount: r.outputLines.length,
+  }));
+  res.json({ entries, stats: getStats() });
+});
 
-/** GET /api/bots/activity — historial de ejecuciones */
-router.get("/bots/activity", requireAuth, (_req, res) => {
-  res.json({ entries: getAll(), stats: getStats() });
+// ── GET /bots/status — estado del sistema y dependencias ────────────────────
+router.get("/bots/status", (_req: Request, res: Response) => {
+  const run = (cmd: string): string => {
+    try { return execSync(cmd, { timeout: 8000, encoding: "utf8" }).trim(); }
+    catch { return ""; }
+  };
+
+  // Python
+  const pythonRaw = run("python3 --version 2>&1");
+  const pythonOk  = pythonRaw.includes("Python");
+
+  // Node
+  const nodeRaw = run("node --version");
+
+  // pip packages — nombre:import_name:install_cmd
+  const PACKAGES: Array<{ name: string; pip: string; fix: string; optional?: boolean }> = [
+    { name: "python-dotenv",         pip: "dotenv",               fix: "pip install python-dotenv" },
+    { name: "python-telegram-bot",   pip: "telegram",             fix: "pip install python-telegram-bot" },
+    { name: "requests",              pip: "requests",             fix: "pip install requests" },
+    { name: "openai",                pip: "openai",               fix: "pip install openai",              optional: true },
+    { name: "anthropic",             pip: "anthropic",            fix: "pip install anthropic",           optional: true },
+    { name: "google-generativeai",   pip: "google.generativeai",  fix: "pip install google-generativeai", optional: true },
+    { name: "apscheduler",           pip: "apscheduler",          fix: "pip install apscheduler",         optional: true },
+    { name: "flask",                 pip: "flask",                fix: "pip install flask",               optional: true },
+    { name: "twilio",                pip: "twilio",               fix: "pip install twilio",              optional: true },
+    { name: "aiohttp",               pip: "aiohttp",              fix: "pip install aiohttp",             optional: true },
+  ];
+
+  const pipListRaw = run("pip3 list --format=columns 2>/dev/null || pip list --format=columns 2>/dev/null");
+  const pipLines   = pipListRaw.toLowerCase().split("\n");
+
+  const packages = PACKAGES.map((pkg) => {
+    const installed = pipLines.some((l) => l.startsWith(pkg.name.toLowerCase()));
+    let version = "";
+    if (installed) {
+      const m = pipLines.find((l) => l.startsWith(pkg.name.toLowerCase()));
+      version = m ? m.split(/\s+/)[1] ?? "" : "";
+    }
+    return { name: pkg.name, installed, version, fix: pkg.fix, optional: !!pkg.optional };
+  });
+
+  // Bot files
+  const botFiles = BOT_CATALOG.map((b) => {
+    const absPath = resolve(REPO_ROOT, b.file);
+    const exists  = existsSync(absPath);
+    return { id: b.id, path: b.file, exists, absPath };
+  });
+
+  // .env
+  const envExists = existsSync(resolve(REPO_ROOT, ".env"));
+
+  res.json({
+    repoRoot: REPO_ROOT,
+    python:   { raw: pythonRaw, ok: pythonOk },
+    node:     { raw: nodeRaw,   ok: nodeRaw.startsWith("v") },
+    packages,
+    botFiles,
+    envExists,
+    checkedAt: new Date().toISOString(),
+  });
 });
 
 export default router;
