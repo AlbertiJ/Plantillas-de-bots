@@ -253,7 +253,7 @@ Las plantillas de **CTF y OSINT** incluyen capacidades de análisis de IPs, DNS,
 - [x] **Fase 2** — Auditoría de plantillas existentes (14 Telegram + 10 WhatsApp en `.py`).
 - [x] **Fase 3** — 5 agentes IA Telegram + 5 agentes IA WhatsApp.
 - [x] **Fase 4** — 5 plantillas CTF/OSINT Telegram + 5 WhatsApp (con disclaimer ético).
-- [ ] **Fase 5** — Menú CTF/OSINT en panel admin con selector de herramientas.
+- [x] **Fase 5** — Lanzador de Bots: selector con checkboxes, salida en tiempo real (SSE), stdin, exportar CSV/HTML. Página Actividad con historial y estadísticas de uso.
 - [x] **Fase 6** — Modo local 24×7 con watchdog y notificaciones Telegram.
 
 ---
