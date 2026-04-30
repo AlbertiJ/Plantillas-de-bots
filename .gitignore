@@ -83,3 +83,7 @@ bots/exports/
 # OS
 .DS_Store
 desktop.ini
+
+# Logs locales del panel (generados por setup.sh / start.sh)
+logs/
+check_report.txt
