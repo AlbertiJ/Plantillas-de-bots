@@ -19,13 +19,13 @@ import Credentials from "@/pages/credentials";
 import CommonErrors from "@/pages/errors";
 import LoginPage from "@/pages/login";
 import AdminPage from "@/pages/admin";
+import LauncherPage from "@/pages/launcher";
+import ActivityPage from "@/pages/activity";
 
 const queryClient = new QueryClient();
 
 const protect = (Component: React.ComponentType) => () => (
-  <ProtectedRoute>
-    <Component />
-  </ProtectedRoute>
+  <ProtectedRoute><Component /></ProtectedRoute>
 );
 
 function Router() {
@@ -41,6 +41,8 @@ function Router() {
       <Route path="/credentials" component={protect(Credentials)} />
       <Route path="/errors" component={protect(CommonErrors)} />
       <Route path="/admin" component={protect(AdminPage)} />
+      <Route path="/launcher" component={protect(LauncherPage)} />
+      <Route path="/activity" component={protect(ActivityPage)} />
       <Route component={NotFound} />
     </Switch>
   );
