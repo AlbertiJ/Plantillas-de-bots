@@ -292,7 +292,8 @@ if missing_required or missing_optional:
     if missing_required:
         print()
         print(f"  {FAIL}  Requeridos faltantes: {', '.join(missing_required)}")
-        print(f"       {CYAN(f'pip install {\" \".join(missing_required)}')}")
+        pkgs_required = " ".join(missing_required)
+        print(f"       {CYAN(f'pip install {pkgs_required}')}")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
