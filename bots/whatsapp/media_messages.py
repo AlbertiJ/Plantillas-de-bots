@@ -1,61 +1,75 @@
+#!/usr/bin/env python3
 """
-Mensajes multimedia para WhatsApp (Twilio + Flask).
-
-Demuestra como recibir archivos enviados por el usuario (foto, audio,
-documento) y como responder enviando una imagen o un PDF publico.
-
-Uso:
-    python bots/whatsapp/media_messages.py
+media_messages.py — Bot de multimedia WhatsApp
+MODIFICAR: reemplazar las URLs con tus recursos reales.
+Requiere: WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN, WHATSAPP_ACCESS_TOKEN
+pip install flask requests
 """
+import logging, os, requests
+from flask import Flask, request, jsonify
 
-import sys
-from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from flask import Flask, request
-from twilio.twiml.messaging_response import MessagingResponse
-
-from bots.shared.env import get_env
-from bots.shared.logger import get_logger
-
-logger = get_logger(__name__)
-
+PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_token_secreto")
+ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+PORT         = int(os.getenv("PORT", "5000"))
+WA_API_URL   = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
 app = Flask(__name__)
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def send_message(to: str, text: str) -> dict:
+    """MODIFICAR: agregar más tipos de mensajes (imagen, template, etc.)"""
+    if not ACCESS_TOKEN or not PHONE_ID:
+        logger.error("ACCESS_TOKEN o PHONE_ID no configurados")
+        return {}
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text[:4000]}}
+    r = requests.post(WA_API_URL, headers=headers, json=payload, timeout=10)
+    return r.json()
+
+@app.route("/webhook", methods=["GET"])
+def verify():
+    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+        return request.args.get("hub.challenge", ""), 200
+    return "Token inválido", 403
 
 
-@app.route("/whatsapp", methods=["POST"])
-def whatsapp_webhook():
-    incoming_msg = request.values.get("Body", "").strip().lower()
+def send_image(to: str, url: str, caption: str = "") -> dict:
+    """MODIFICAR: usar image_id para imágenes subidas al Media API."""
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "image",
+               "image": {"link": url, "caption": caption}}
+    return requests.post(WA_API_URL, headers=headers, json=payload, timeout=10).json()
 
-    # MODIFICAR: NumMedia indica cuantos archivos envio el usuario.
-    num_media = int(request.values.get("NumMedia", 0))
-    if num_media > 0:
-        # MODIFICAR: puedes descargar este archivo con requests.get(media_url)
-        # autenticando con tus credenciales Twilio.
-        media_url = request.values.get("MediaUrl0")
-        media_type = request.values.get("MediaContentType0")
-        logger.info("Archivo recibido: %s (%s)", media_url, media_type)
-
-    resp = MessagingResponse()
-    msg = resp.message()
-
-    if "imagen" in incoming_msg or "image" in incoming_msg:
-        msg.body("Aqui tienes una imagen:")
-        # MODIFICAR: cambia esta URL por la imagen que quieras enviar
-        # (debe ser publica y accesible desde internet).
-        msg.media("https://images.unsplash.com/photo-1517849845537-4d257902454a?w=400")
-    elif "pdf" in incoming_msg or "doc" in incoming_msg:
-        msg.body("Aqui esta el documento:")
-        # MODIFICAR: cambia por la URL de tu PDF o documento.
-        msg.media("https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf")
-    else:
-        msg.body("Envia 'imagen' para una foto o 'pdf' para un documento.")
-
-    return str(resp)
-
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json()
+    try:
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    sender   = msg["from"]
+                    msg_type = msg.get("type")
+                    if msg_type == "text":
+                        text = msg["text"]["body"].strip().lower()
+                        if text == "!imagen":
+                            # MODIFICAR: reemplazar con URL de tu imagen
+                            send_image(sender, "https://picsum.photos/400/300", "Imagen de ejemplo")
+                        elif text == "!audio":
+                            send_message(sender, "Para audio, subí el archivo al Media API primero.")
+                        else:
+                            send_message(sender, "Comandos: !imagen, !audio")
+                    elif msg_type == "image":
+                        mid = msg.get("image", {}).get("id", "?")
+                        send_message(sender, f"Imagen recibida! Media ID: {mid}")
+                    elif msg_type == "document":
+                        doc = msg.get("document", {})
+                        send_message(sender, f"Documento: {doc.get('filename','?')} ({doc.get('mime_type','?')})")
+                    elif msg_type == "audio":
+                        send_message(sender, "Audio recibido!")
+    except Exception as e:
+        logger.error("Error: %s", e)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
-    port = int(get_env("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=PORT, debug=False)

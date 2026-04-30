@@ -1,130 +1,76 @@
+#!/usr/bin/env python3
 """
-Agente IA con busqueda web (Telegram).
-
-Para cada pregunta del usuario:
-    1. Busca en DuckDuckGo (HTML, sin API key)
-    2. Toma los 5 primeros resultados (titulo + snippet + url)
-    3. Pide a OpenAI que sintetice una respuesta citando las fuentes
-
-Uso:
-    python bots/telegram/agent_websearch.py
-
-Requisitos en .env:
-    TELEGRAM_BOT_TOKEN
-    OPENAI_API_KEY
+agent_websearch.py — Agente con búsqueda web (DuckDuckGo + OpenAI)
+MODIFICAR: cambiar el motor de búsqueda por SerpAPI u otro si necesitás más resultados.
+Requiere: TELEGRAM_BOT_TOKEN, OPENAI_API_KEY
 """
-
-import sys
-from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-import requests
-from bs4 import BeautifulSoup
-from openai import OpenAI
+import logging, os, json, urllib.parse, urllib.request
+from openai import AsyncOpenAI
 from telegram import Update
-from telegram.ext import (
-    Application,
-    MessageHandler,
-    filters,
-    ContextTypes,
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-from bots.shared.env import get_env, require_env
-from bots.shared.logger import get_logger
+TOKEN      = os.getenv("TELEGRAM_BOT_TOKEN", "")
+OPENAI_KEY = os.getenv("OPENAI_API_KEY", "")
+MODEL      = "gpt-4o-mini"
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
+client = AsyncOpenAI(api_key=OPENAI_KEY) if OPENAI_KEY else None
 
-logger = get_logger(__name__)
+def duckduckgo_search(query: str, max_results: int = 5) -> str:
+    """MODIFICAR: usar SerpAPI u otro motor para más resultados."""
+    try:
+        url = f"https://api.duckduckgo.com/?q={urllib.parse.quote(query)}&format=json&no_html=1"
+        with urllib.request.urlopen(url, timeout=8) as r:
+            data = json.loads(r.read().decode())
+        results = []
+        if data.get("Abstract"):
+            results.append(f"Resumen: {data['Abstract']}")
+        for topic in data.get("RelatedTopics", [])[:max_results]:
+            if isinstance(topic, dict) and topic.get("Text"):
+                results.append(f"- {topic['Text'][:200]}")
+        return "\n".join(results) if results else "Sin resultados en DuckDuckGo."
+    except Exception as e:
+        return f"Error de búsqueda: {e}"
 
-client = OpenAI(api_key=require_env("OPENAI_API_KEY"))
-MODEL = get_env("OPENAI_MODEL", "gpt-4o-mini")
-
-UA = "Mozilla/5.0 (X11; Linux x86_64) plantillas-de-bots/1.0"
-# MODIFICAR: ajusta el numero de resultados a procesar.
-TOP_N = 5
-
-
-def web_search(query: str) -> list[dict]:
-    """Devuelve lista de {title, url, snippet}."""
-    # MODIFICAR: cambia por una API real (Tavily, Serper, Brave) si quieres
-    # mas calidad y resiliencia al cambio del HTML.
-    resp = requests.post(
-        "https://html.duckduckgo.com/html/",
-        data={"q": query},
-        headers={"User-Agent": UA},
-        timeout=10,
+async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "\U0001F50D Agente de Búsqueda Web\n\n/search <consulta>\nO enviame una pregunta directamente."
     )
-    soup = BeautifulSoup(resp.text, "html.parser")
-    results = []
-    for r in soup.select("div.result")[:TOP_N]:
-        title_el = r.select_one("a.result__a")
-        snippet_el = r.select_one("a.result__snippet, div.result__snippet")
-        if not title_el:
-            continue
-        results.append({
-            "title": title_el.get_text(strip=True),
-            "url": title_el.get("href", ""),
-            "snippet": snippet_el.get_text(strip=True) if snippet_el else "",
-        })
-    return results
 
+async def search_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not ctx.args:
+        await update.message.reply_text("Uso: /search tu consulta aquí")
+        return
+    query   = " ".join(ctx.args)
+    await ctx.bot.send_chat_action(update.effective_chat.id, "typing")
+    results = duckduckgo_search(query)
+    await update.message.reply_text(f"\U0001F50D Resultados para: {query}\n\n{results}")
 
-def format_context(results: list[dict]) -> str:
-    lines = []
-    for i, r in enumerate(results, 1):
-        lines.append(f"[{i}] {r['title']}\n{r['snippet']}\nURL: {r['url']}")
-    return "\n\n".join(lines)
-
-
-async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.message.text
-    await update.message.reply_text("Buscando informacion...")
-
+async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not client:
+        await update.message.reply_text("OPENAI_API_KEY no configurada.")
+        return
+    question = update.message.text
+    await ctx.bot.send_chat_action(update.effective_chat.id, "typing")
+    results  = duckduckgo_search(question)
+    prompt   = f"El usuario pregunta: {question}\n\nResultados web:\n{results}\n\nRespondé de forma concisa."
     try:
-        results = web_search(query)
+        resp = await client.chat.completions.create(model=MODEL,
+            messages=[{"role": "user", "content": prompt}])
+        await update.message.reply_text(resp.choices[0].message.content)
     except Exception as e:
-        logger.error("Error de busqueda: %s", e)
-        await update.message.reply_text("No pude hacer la busqueda web.")
-        return
-
-    if not results:
-        await update.message.reply_text("Sin resultados utiles.")
-        return
-
-    ctx = format_context(results)
-    # MODIFICAR: ajusta el system prompt para tu estilo de respuesta.
-    messages = [
-        {"role": "system", "content": (
-            "Eres un asistente que responde basandote SOLO en los resultados "
-            "de busqueda dados. Cita las fuentes con [1], [2], etc. al final "
-            "de cada afirmacion. Responde en espanol."
-        )},
-        {"role": "user", "content": f"Pregunta: {query}\n\nResultados:\n{ctx}"},
-    ]
-
-    try:
-        completion = client.chat.completions.create(
-            model=MODEL,
-            messages=messages,
-            temperature=0.3,
-        )
-        reply = completion.choices[0].message.content.strip()
-    except Exception as e:
-        logger.error("Error OpenAI: %s", e)
-        await update.message.reply_text("Encontre resultados pero el modelo fallo.")
-        return
-
-    sources = "\n".join(f"[{i}] {r['url']}" for i, r in enumerate(results, 1))
-    await update.message.reply_text(f"{reply}\n\nFuentes:\n{sources}")
-
+        await update.message.reply_text(f"\U0000274C Error: {e}")
 
 def main() -> None:
-    token = require_env("TELEGRAM_BOT_TOKEN")
-    app = Application.builder().token(token).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
-    logger.info("Agente con busqueda web iniciado.")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
-
+    if not TOKEN:
+        raise ValueError("TELEGRAM_BOT_TOKEN no está configurado en .env")
+    if not OPENAI_KEY:
+        raise ValueError("OPENAI_API_KEY no está configurado en .env")
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("search", search_cmd))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.run_polling()
 
 if __name__ == "__main__":
     main()

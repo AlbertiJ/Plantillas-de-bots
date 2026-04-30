@@ -1,108 +1,90 @@
+#!/usr/bin/env python3
 """
-Bot WhatsApp con base de datos SQLite (Twilio + Flask + sqlite3).
-
-Guarda informacion de los usuarios (nombre, contador de mensajes, ultima
-visita) en una base de datos SQLite local. Util como base para bots que
-necesitan persistir estado entre conversaciones.
-
-Uso:
-    python bots/whatsapp/sqlite_database.py
+sqlite_database.py — Bot WhatsApp con persistencia SQLite
+MODIFICAR: agregar más tablas en init_db() según tus necesidades.
+Requiere: WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN, WHATSAPP_ACCESS_TOKEN
+pip install flask requests
 """
+import logging, os, requests
+from flask import Flask, request, jsonify
+
+PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_token_secreto")
+ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+PORT         = int(os.getenv("PORT", "5000"))
+WA_API_URL   = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
+app = Flask(__name__)
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def send_message(to: str, text: str) -> dict:
+    """MODIFICAR: agregar más tipos de mensajes (imagen, template, etc.)"""
+    if not ACCESS_TOKEN or not PHONE_ID:
+        logger.error("ACCESS_TOKEN o PHONE_ID no configurados")
+        return {}
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text[:4000]}}
+    r = requests.post(WA_API_URL, headers=headers, json=payload, timeout=10)
+    return r.json()
+
+@app.route("/webhook", methods=["GET"])
+def verify():
+    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+        return request.args.get("hub.challenge", ""), 200
+    return "Token inválido", 403
 
 import sqlite3
-import sys
 from pathlib import Path
 
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+DB_PATH = Path(__file__).parent / "wa_user_data.db"
 
-from flask import Flask, request
-from twilio.twiml.messaging_response import MessagingResponse
+def init_db():
+    # MODIFICAR: agregar más tablas
+    with sqlite3.connect(DB_PATH) as con:
+        con.execute("""CREATE TABLE IF NOT EXISTS user_data (
+            phone TEXT, key TEXT, value TEXT, PRIMARY KEY (phone, key))""")
+        con.commit()
 
-from bots.shared.env import get_env
-from bots.shared.logger import get_logger
+def db_save(phone, key, val):
+    with sqlite3.connect(DB_PATH) as con:
+        con.execute("INSERT OR REPLACE INTO user_data VALUES (?,?,?)", (phone, key, val))
+        con.commit()
 
-logger = get_logger(__name__)
+def db_get(phone, key):
+    with sqlite3.connect(DB_PATH) as con:
+        row = con.execute("SELECT value FROM user_data WHERE phone=? AND key=?", (phone, key)).fetchone()
+    return row[0] if row else None
 
-app = Flask(__name__)
-# MODIFICAR: cambia 'bot.db' por el nombre que quieras para tu base de datos.
-DB_PATH = "bot.db"
+def db_list(phone):
+    with sqlite3.connect(DB_PATH) as con:
+        return con.execute("SELECT key, value FROM user_data WHERE phone=?", (phone,)).fetchall()
 
-
-def init_db() -> None:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    # MODIFICAR: ajusta las columnas de la tabla segun los datos que necesitas guardar.
-    c.execute(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            phone TEXT PRIMARY KEY,
-            name TEXT,
-            message_count INTEGER DEFAULT 0,
-            last_seen TEXT
-        )
-        """
-    )
-    conn.commit()
-    conn.close()
-
-
-def get_or_create_user(phone: str) -> tuple:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    # MODIFICAR: agrega mas campos si necesitas guardar mas informacion del usuario.
-    c.execute(
-        "INSERT OR IGNORE INTO users (phone, message_count) VALUES (?, 0)", (phone,)
-    )
-    c.execute(
-        "UPDATE users SET message_count = message_count + 1, "
-        "last_seen = datetime('now') WHERE phone = ?",
-        (phone,),
-    )
-    conn.commit()
-    c.execute("SELECT * FROM users WHERE phone = ?", (phone,))
-    user = c.fetchone()
-    conn.close()
-    return user
-
-
-def set_user_name(phone: str, name: str) -> None:
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    # MODIFICAR: extiende esto para actualizar cualquier otro campo del usuario.
-    c.execute("UPDATE users SET name = ? WHERE phone = ?", (name, phone))
-    conn.commit()
-    conn.close()
-
-
-@app.route("/whatsapp", methods=["POST"])
-def whatsapp_webhook():
-    incoming_msg = request.values.get("Body", "").strip()
-    sender = request.values.get("From", "")
-
-    user = get_or_create_user(sender)
-    # user[0]=phone, user[1]=name, user[2]=message_count, user[3]=last_seen
-    name = user[1] or "amigo/a"
-    count = user[2]
-
-    resp = MessagingResponse()
-    msg = resp.message()
-
-    if incoming_msg.lower().startswith("mi nombre es ") or incoming_msg.lower().startswith("my name is "):
-        # MODIFICAR: ajusta el prefijo de comando segun el idioma de tu bot.
-        new_name = incoming_msg.split(" ", 3)[-1]
-        set_user_name(sender, new_name)
-        msg.body(f"Genial, te recordare como {new_name}!")
-    elif incoming_msg.lower() in ["stats", "estadisticas", "estadísticas"]:
-        msg.body(f"Hola {name}! Llevas {count} mensajes en total.")
-    else:
-        msg.body(f"Hola {name}! Mensaje #{count}.")
-
-    return str(resp)
-
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json()
+    try:
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    if msg.get("type") != "text": continue
+                    sender = msg["from"]
+                    parts  = msg["text"]["body"].strip().split(None, 2)
+                    cmd    = parts[0].lower() if parts else ""
+                    if cmd == "!guardar" and len(parts) >= 3:
+                        db_save(sender, parts[1], parts[2])
+                        send_message(sender, f"Guardado: {parts[1]} = {parts[2]}")
+                    elif cmd == "!obtener" and len(parts) >= 2:
+                        val = db_get(sender, parts[1])
+                        send_message(sender, f"{parts[1]} = {val}" if val else f"'{parts[1]}' no encontrado")
+                    elif cmd == "!mis-datos":
+                        rows = db_list(sender)
+                        send_message(sender, ("\n".join(f"- {k}: {v}" for k,v in rows)) if rows else "Sin datos.")
+                    else:
+                        send_message(sender, "Comandos:\n!guardar clave valor\n!obtener clave\n!mis-datos")
+    except Exception as e:
+        logger.error("Error: %s", e)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
     init_db()
-    logger.info("Base de datos inicializada en %s", DB_PATH)
-    port = int(get_env("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=PORT, debug=False)

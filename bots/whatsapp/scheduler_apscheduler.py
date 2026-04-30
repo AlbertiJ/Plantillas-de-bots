@@ -1,76 +1,87 @@
+#!/usr/bin/env python3
 """
-Programador de mensajes para WhatsApp (APScheduler + Twilio).
-
-Envia mensajes proactivos en horarios definidos (ej: recordatorio diario).
-No es un webhook, es un proceso aparte que corre en segundo plano.
-
-Uso:
-    python bots/whatsapp/scheduler_apscheduler.py
-    # Mantener corriendo (Ctrl+C para salir).
-
-Requisitos en .env:
-    TWILIO_ACCOUNT_SID
-    TWILIO_AUTH_TOKEN
-    TWILIO_WHATSAPP_NUMBER (ej: whatsapp:+14155238886)
+scheduler_apscheduler.py — Bot con recordatorios automáticos WhatsApp
+MODIFICAR: usar una DB para persistencia entre reinicios si es necesario.
+Requiere: WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN, WHATSAPP_ACCESS_TOKEN
+pip install flask requests apscheduler
 """
+import logging, os, requests
+from flask import Flask, request, jsonify
 
-import sys
-from datetime import datetime, timedelta
-from pathlib import Path
+PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_token_secreto")
+ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+PORT         = int(os.getenv("PORT", "5000"))
+WA_API_URL   = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
+app = Flask(__name__)
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+def send_message(to: str, text: str) -> dict:
+    """MODIFICAR: agregar más tipos de mensajes (imagen, template, etc.)"""
+    if not ACCESS_TOKEN or not PHONE_ID:
+        logger.error("ACCESS_TOKEN o PHONE_ID no configurados")
+        return {}
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text[:4000]}}
+    r = requests.post(WA_API_URL, headers=headers, json=payload, timeout=10)
+    return r.json()
+
+@app.route("/webhook", methods=["GET"])
+def verify():
+    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+        return request.args.get("hub.challenge", ""), 200
+    return "Token inválido", 403
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from twilio.rest import Client
+import datetime
 
-from bots.shared.env import get_env, require_env
-from bots.shared.logger import get_logger
+scheduler = BackgroundScheduler()
+scheduler.start()
+reminders: dict[str, list] = {}
+rid_counter = {"n": 0}
 
-logger = get_logger(__name__)
+def send_reminder(phone: str, text: str, rid: int):
+    send_message(phone, f"Recordatorio #{rid}: {text}")
 
-# MODIFICAR: estas variables vienen de tu archivo .env.
-account_sid = require_env("TWILIO_ACCOUNT_SID")
-auth_token = require_env("TWILIO_AUTH_TOKEN")
-# MODIFICAR: en produccion cambia por tu numero WhatsApp Business verificado.
-twilio_number = get_env("TWILIO_WHATSAPP_NUMBER", "whatsapp:+14155238886")
-client = Client(account_sid, auth_token)
-
-
-def send_daily_reminder() -> None:
-    # MODIFICAR: en produccion obten esta lista desde tu base de datos.
-    users = ["whatsapp:+1234567890"]
-
-    for user_number in users:
-        try:
-            # MODIFICAR: personaliza el mensaje del recordatorio.
-            message = client.messages.create(
-                body="Recordatorio diario: no olvides registrar tus horas hoy!",
-                from_=twilio_number,
-                to=user_number,
-            )
-            logger.info("Enviado a %s. SID: %s", user_number, message.sid)
-        except Exception as e:
-            logger.error("Error al enviar a %s: %s", user_number, e)
-
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json()
+    try:
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    if msg.get("type") != "text": continue
+                    sender = msg["from"]
+                    parts  = msg["text"]["body"].strip().split(None, 2)
+                    cmd    = parts[0].lower() if parts else ""
+                    if cmd == "!recordar" and len(parts) >= 3:
+                        try:
+                            mins    = int(parts[1])
+                            text    = parts[2]
+                            rid_counter["n"] += 1
+                            rid     = rid_counter["n"]
+                            run_at  = datetime.datetime.now() + datetime.timedelta(minutes=mins)
+                            scheduler.add_job(send_reminder, "date", run_date=run_at,
+                                args=[sender, text, rid], id=f"rem_{sender}_{rid}")
+                            reminders.setdefault(sender, []).append({"id": rid, "text": text, "at": run_at.strftime("%H:%M")})
+                            send_message(sender, f"Recordatorio #{rid} en {mins} min ({run_at.strftime('%H:%M')})")
+                        except ValueError:
+                            send_message(sender, "Uso: !recordar <minutos> <mensaje>")
+                    elif cmd == "!mis-recordatorios":
+                        rems = reminders.get(sender, [])
+                        send_message(sender, ("\n".join(f"#{r['id']} a {r['at']}: {r['text']}" for r in rems)) if rems else "Sin recordatorios.")
+                    elif cmd == "!cancelar" and len(parts) >= 2:
+                        try:
+                            scheduler.remove_job(f"rem_{sender}_{parts[1]}")
+                            send_message(sender, f"Recordatorio #{parts[1]} cancelado.")
+                        except Exception:
+                            send_message(sender, f"No encontré ese recordatorio.")
+                    else:
+                        send_message(sender, "Comandos:\n!recordar <min> <msg>\n!mis-recordatorios\n!cancelar <id>")
+    except Exception as e:
+        logger.error("Error: %s", e)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
-    scheduler = BackgroundScheduler()
-
-    # MODIFICAR: cambia la hora a la que quieres enviar el mensaje diario.
-    scheduler.add_job(send_daily_reminder, "cron", hour=9, minute=0)
-
-    # MODIFICAR: elimina esta linea en produccion. Solo sirve para probar
-    # que el envio funciona 10 segundos despues de iniciar el script.
-    run_date = datetime.now() + timedelta(seconds=10)
-    scheduler.add_job(send_daily_reminder, "date", run_date=run_date)
-
-    scheduler.start()
-    logger.info("Programador iniciado. Ctrl+C para salir.")
-
-    try:
-        while True:
-            pass
-    except (KeyboardInterrupt, SystemExit):
-        scheduler.shutdown()
-        logger.info("Programador detenido.")
+    app.run(host="0.0.0.0", port=PORT, debug=False)

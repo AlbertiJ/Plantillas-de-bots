@@ -1,78 +1,75 @@
+#!/usr/bin/env python3
 """
-Bot multiusuario / de grupo para WhatsApp (Twilio + Flask).
-
-Identifica a los participantes y permite que ciertos numeros (admins)
-ejecuten comandos especiales como /broadcast o /stats.
-
-Uso:
-    python bots/whatsapp/group_multiuser.py
+group_multiuser.py — Bot multiusuario grupos WhatsApp
+MODIFICAR: agregar más campos al contexto en get_or_create_ctx().
+Requiere: WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN, WHATSAPP_ACCESS_TOKEN
+pip install flask requests
 """
+import logging, os, requests
+from flask import Flask, request, jsonify
 
-import sys
-from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from flask import Flask, request
-from twilio.twiml.messaging_response import MessagingResponse
-
-from bots.shared.env import get_env
-from bots.shared.logger import get_logger
-
-logger = get_logger(__name__)
-
+PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_token_secreto")
+ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+PORT         = int(os.getenv("PORT", "5000"))
+WA_API_URL   = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
 app = Flask(__name__)
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# MODIFICAR: agrega aqui los numeros de los administradores del bot.
-ADMIN_NUMBERS = ["whatsapp:+1234567890"]
+def send_message(to: str, text: str) -> dict:
+    """MODIFICAR: agregar más tipos de mensajes (imagen, template, etc.)"""
+    if not ACCESS_TOKEN or not PHONE_ID:
+        logger.error("ACCESS_TOKEN o PHONE_ID no configurados")
+        return {}
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text[:4000]}}
+    r = requests.post(WA_API_URL, headers=headers, json=payload, timeout=10)
+    return r.json()
 
-# MODIFICAR: adapta los comandos de administrador segun tus necesidades.
-ADMIN_COMMANDS = {
-    "/broadcast": "Enviar mensaje a todos",
-    "/stats": "Ver estadisticas del grupo",
-}
+@app.route("/webhook", methods=["GET"])
+def verify():
+    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+        return request.args.get("hub.challenge", ""), 200
+    return "Token inválido", 403
 
-# MODIFICAR: mantén un registro de todos los usuarios que han interactuado.
-# En produccion usa una DB.
-known_users: set[str] = set()
+import datetime
 
+user_contexts: dict[str, dict] = {}
+group_stats: dict[str, int] = {}
 
-def is_admin(sender: str) -> bool:
-    # MODIFICAR: puedes almacenar los admins en una DB en lugar de hardcodearlos.
-    return sender in ADMIN_NUMBERS
+def get_or_create_ctx(phone: str, name: str) -> dict:
+    if phone not in user_contexts:
+        user_contexts[phone] = {"name": name, "session_start": datetime.datetime.now().isoformat(), "message_count": 0}
+    user_contexts[phone]["message_count"] += 1
+    return user_contexts[phone]
 
-
-@app.route("/whatsapp", methods=["POST"])
-def whatsapp_webhook():
-    incoming_msg = request.values.get("Body", "").strip()
-    sender = request.values.get("From", "")
-    # MODIFICAR: 'ProfileName' tiene el nombre del contacto en WhatsApp.
-    profile_name = request.values.get("ProfileName", "Usuario")
-
-    known_users.add(sender)
-
-    resp = MessagingResponse()
-    msg = resp.message()
-
-    if is_admin(sender) and incoming_msg.startswith("/"):
-        # MODIFICAR: agrega la logica real de administracion aqui.
-        if incoming_msg == "/stats":
-            msg.body(f"Usuarios conocidos: {len(known_users)}")
-        elif incoming_msg.startswith("/broadcast "):
-            broadcast_msg = incoming_msg[len("/broadcast "):]
-            # MODIFICAR: itera sobre tu DB de usuarios para enviar a todos.
-            logger.info("Broadcast de admin %s: %s", sender, broadcast_msg)
-            msg.body(f"Broadcast enviado: {broadcast_msg}")
-        else:
-            msg.body(f"Comandos de admin: {', '.join(ADMIN_COMMANDS.keys())}")
-    else:
-        # MODIFICAR: aqui va la logica normal para usuarios regulares.
-        msg.body(f"Hola {profile_name}! Somos {len(known_users)} usuarios.")
-
-    return str(resp)
-
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json()
+    try:
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    if msg.get("type") != "text": continue
+                    sender = msg["from"]
+                    name   = change.get("value", {}).get("contacts", [{}])[0].get("profile", {}).get("name", sender)
+                    text   = msg["text"]["body"].strip().lower()
+                    ctx    = get_or_create_ctx(sender, name)
+                    group_stats[sender] = group_stats.get(sender, 0) + 1
+                    if text == "!yo":
+                        send_message(sender, f"Tu sesión:\nNombre: {ctx['name']}\nInicio: {ctx['session_start'][:19]}\nMensajes: {ctx['message_count']}")
+                    elif text == "!stats":
+                        total = sum(group_stats.values())
+                        lines = [f"{k[-4:]}: {v}" for k,v in list(group_stats.items())[:10]]
+                        send_message(sender, f"Total: {total} msgs\n" + "\n".join(lines))
+                    elif text == "!grupo":
+                        send_message(sender, f"Usuarios: {len(user_contexts)}\nTotal msgs: {sum(group_stats.values())}")
+                    else:
+                        send_message(sender, "Comandos: !yo, !grupo, !stats")
+    except Exception as e:
+        logger.error("Error: %s", e)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
-    port = int(get_env("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=PORT, debug=False)

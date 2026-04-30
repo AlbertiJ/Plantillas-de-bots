@@ -1,131 +1,67 @@
+#!/usr/bin/env python3
 """
-Agente IA con OpenAI y memoria persistente (Telegram).
-
-Conversa con el usuario manteniendo el historial por chat_id en un
-archivo JSON local (`data/chats/<chat_id>.json`). El historial sobrevive
-a reinicios del bot.
-
-Comandos especiales:
-    /reset   - Borra el historial del chat actual
-    /system  - (admin) cambia el system prompt en caliente
-
-Uso:
-    python bots/telegram/agent_openai_basic.py
-
-Requisitos en .env:
-    TELEGRAM_BOT_TOKEN
-    OPENAI_API_KEY
-    OPENAI_MODEL  (opcional, default gpt-4o-mini)
+agent_openai_basic.py — Agente OpenAI (GPT-4o) para Telegram con memoria
+MODIFICAR: cambiar SYSTEM_PROMPT y MODEL según tu caso de uso.
+Requiere: TELEGRAM_BOT_TOKEN, OPENAI_API_KEY
 """
-
-import json
-import sys
-from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from openai import OpenAI
+import logging, os
+from openai import AsyncOpenAI
 from telegram import Update
-from telegram.ext import (
-    Application,
-    CommandHandler,
-    MessageHandler,
-    filters,
-    ContextTypes,
-)
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-from bots.shared.env import get_env, require_env
-from bots.shared.logger import get_logger
-
-logger = get_logger(__name__)
-
-# MODIFICAR: cambia la personalidad del agente aqui.
+TOKEN      = os.getenv("TELEGRAM_BOT_TOKEN", "")
+OPENAI_KEY = os.getenv("OPENAI_API_KEY", "")
+MODEL      = "gpt-4o-mini"   # MODIFICAR: gpt-4o, gpt-4o-mini, gpt-3.5-turbo
+# MODIFICAR: personalizar el comportamiento del agente
 SYSTEM_PROMPT = (
-    "Eres un asistente amable, conciso y directo. Respondes siempre en espanol "
-    "salvo que el usuario te hable en otro idioma."
+    "Sos un asistente amigable y conciso. "
+    "Respondé en el mismo idioma que el usuario. Máximo 3 párrafos."
 )
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
+client = AsyncOpenAI(api_key=OPENAI_KEY) if OPENAI_KEY else None
+history: dict[int, list] = {}
+MAX_HISTORY = 20  # MODIFICAR: turnos a recordar
 
-# MODIFICAR: cambia el limite para controlar el costo de tokens.
-MAX_HISTORY = 20
+async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("\U0001F916 Agente OpenAI activo.\n/reset — Borrar historial")
 
-CHATS_DIR = Path("data/chats")
-CHATS_DIR.mkdir(parents=True, exist_ok=True)
+async def reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    history.pop(update.effective_user.id, None)
+    await update.message.reply_text("\U0001F9F9 Historial borrado.")
 
-client = OpenAI(api_key=require_env("OPENAI_API_KEY"))
-MODEL = get_env("OPENAI_MODEL", "gpt-4o-mini")
-
-
-def _history_path(chat_id: int) -> Path:
-    return CHATS_DIR / f"{chat_id}.json"
-
-
-def load_history(chat_id: int) -> list[dict]:
-    p = _history_path(chat_id)
-    if not p.exists():
-        return [{"role": "system", "content": SYSTEM_PROMPT}]
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except Exception:
-        return [{"role": "system", "content": SYSTEM_PROMPT}]
-
-
-def save_history(chat_id: int, history: list[dict]) -> None:
-    _history_path(chat_id).write_text(
-        json.dumps(history, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-
-
-def trim(history: list[dict]) -> list[dict]:
-    if len(history) <= MAX_HISTORY:
-        return history
-    # MODIFICAR: estrategia de poda. Aqui mantenemos el system + ultimos N-1.
-    return [history[0]] + history[-(MAX_HISTORY - 1):]
-
-
-async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = update.effective_chat.id
-    save_history(chat_id, [{"role": "system", "content": SYSTEM_PROMPT}])
-    await update.message.reply_text("Historial borrado. Empezamos de cero.")
-
-
-async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    chat_id = update.effective_chat.id
-    user_msg = update.message.text
-
-    history = load_history(chat_id)
-    history.append({"role": "user", "content": user_msg})
-    history = trim(history)
-
-    try:
-        completion = client.chat.completions.create(
-            model=MODEL,
-            messages=history,
-            # MODIFICAR: ajusta temperatura para mas creatividad (0.0-1.5).
-            temperature=0.7,
-        )
-        reply = completion.choices[0].message.content.strip()
-    except Exception as e:
-        logger.error("Error OpenAI: %s", e)
-        await update.message.reply_text("Tuve un problema con el modelo. Reintenta.")
+async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not client:
+        await update.message.reply_text("OPENAI_API_KEY no configurada.")
         return
-
-    history.append({"role": "assistant", "content": reply})
-    save_history(chat_id, history)
-
-    await update.message.reply_text(reply)
-
+    uid  = update.effective_user.id
+    text = update.message.text
+    msgs = history.setdefault(uid, [{"role": "system", "content": SYSTEM_PROMPT}])
+    msgs.append({"role": "user", "content": text})
+    if len(msgs) > MAX_HISTORY + 1:
+        msgs = [msgs[0]] + msgs[-MAX_HISTORY:]
+        history[uid] = msgs
+    await ctx.bot.send_chat_action(update.effective_chat.id, "typing")
+    try:
+        resp  = await client.chat.completions.create(model=MODEL, messages=msgs)
+        reply = resp.choices[0].message.content
+        msgs.append({"role": "assistant", "content": reply})
+        await update.message.reply_text(reply)
+    except Exception as e:
+        logger.error("OpenAI error: %s", e)
+        await update.message.reply_text(f"\U0000274C Error: {e}")
 
 def main() -> None:
-    token = require_env("TELEGRAM_BOT_TOKEN")
-    application = Application.builder().token(token).build()
-
-    application.add_handler(CommandHandler("reset", reset))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
-
-    logger.info("Agente OpenAI iniciado. Modelo: %s", MODEL)
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
+    if not TOKEN:
+        raise ValueError("TELEGRAM_BOT_TOKEN no está configurado en .env")
+    if not OPENAI_KEY:
+        raise ValueError("OPENAI_API_KEY no está configurado en .env")
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("reset", reset))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    logger.info("OpenAI agent bot iniciado (modelo: %s)...", MODEL)
+    app.run_polling()
 
 if __name__ == "__main__":
     main()

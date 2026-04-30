@@ -1,115 +1,82 @@
-# bots/ctf-osint/tg_01_ip_geo_whois.py
-# ╔══════════════════════════════════════════════════════════════╗
-# ║  DISCLAIMER ÉTICO — Solo uso educativo y entornos autorizados║
-# ║  Desarrollado por: Replit (Rocio) — IA Asistente             ║
-# ║  Dueño del código: Juan Alberti                              ║
-# ║  Repositorio: https://github.com/AlbertiJ/Plantillas-de-bots ║
-# ╚══════════════════════════════════════════════════════════════╝
-# ─────────────────────────────────────────────────────────────
-# PROPÓSITO: Bot Telegram — IP Lookup + GeoIP + WHOIS
-# Ejecución: python bots/ctf-osint/tg_01_ip_geo_whois.py
-#         o: python -m bots.ctf-osint.tg_01_ip_geo_whois
-# IDEA FUTURA: agregar mapa interactivo con coordenadas del IP
-# IDEA FUTURA: caché de consultas para evitar rate limits
-# ─────────────────────────────────────────────────────────────
-
+#!/usr/bin/env python3
+"""
+tg_01_ip_geo_whois.py — CTF/OSINT: IP/Geo/Whois para Telegram
+MODIFICAR: usar ipinfo.io con token para más requests en producción.
+pip install python-telegram-bot requests
+"""
+import logging, os, ipaddress
 import requests
-import whois
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from bots.shared.env import require_env
-from bots.shared.logger import get_logger
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-logger = get_logger(__name__)
-# MODIFICAR: nombre de la variable en tu .env
-TOKEN = require_env("TELEGRAM_BOT_TOKEN")
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
 
-DISCLAIMER = (
-    "⚠️ Solo para uso educativo, CTF y auditorías en entornos autorizados.\n"
-    "Nunca uses esto contra sistemas sin permiso explícito del propietario."
-)
-
-
-def lookup_ip(target: str) -> str:
-    """Consulta GeoIP usando ip-api.com (gratuito, sin clave)."""
+def get_ip_info(ip: str) -> dict:
+    # MODIFICAR: agregar token de ipinfo.io para más requests
     try:
-        # MODIFICAR: podés usar ipinfo.io con API key para más datos
-        r = requests.get(
-            f"http://ip-api.com/json/{target}?fields=status,message,country,regionName,city,isp,org,as,query",
-            timeout=10
-        )
-        data = r.json()
-        if data.get("status") != "success":
-            return f"Error: {data.get('message', 'sin respuesta')}"
-        return (
-            f"IP: {data['query']}\n"
-            f"País: {data['country']}\n"
-            f"Región: {data['regionName']}\n"
-            f"Ciudad: {data['city']}\n"
-            f"ISP: {data['isp']}\n"
-            f"Org: {data['org']}\n"
-            f"AS: {data['as']}"
-        )
+        return requests.get(f"https://ipapi.co/{ip}/json/", timeout=8).json()
     except Exception as e:
-        logger.error(f"lookup_ip error: {e}")
-        return f"Error consultando IP: {e}"
+        return {"error": str(e)}
 
-
-def lookup_whois(domain: str) -> str:
-    """WHOIS de un dominio. IDEA FUTURA: parsear fechas de expiración."""
+def simple_whois(domain: str) -> str:
     try:
-        w = whois.whois(domain)
-        created = str(w.creation_date)[:10] if w.creation_date else "N/D"
-        expires = str(w.expiration_date)[:10] if w.expiration_date else "N/D"
-        registrar = w.registrar or "N/D"
-        nameservers = ", ".join(w.name_servers[:3]) if w.name_servers else "N/D"
-        return (
-            f"Dominio: {domain}\n"
-            f"Registrar: {registrar}\n"
-            f"Creado: {created}\n"
-            f"Expira: {expires}\n"
-            f"NS: {nameservers}"
-        )
+        import whois
+        info = whois.whois(domain)
+        return f"Registrar: {info.registrar}\nCreado: {info.creation_date}\nExpira: {info.expiration_date}"
+    except ImportError:
+        return "Instala: pip install python-whois"
     except Exception as e:
-        logger.error(f"lookup_whois error: {e}")
-        return f"Error en WHOIS: {e}"
+        return f"Error: {e}"
 
-
-async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Bot CTF/OSINT — IP Lookup + WHOIS\n\n"
-        "/ip <ip_o_dominio>    — GeoIP lookup\n"
-        "/whois <dominio>      — WHOIS del dominio\n\n"
-        + DISCLAIMER
+        "\U0001F50D IP/Geo/Whois Bot\n\n/ip <IP>\n/whois <dominio>\n/cidr <red/mask>"
     )
 
-
-async def ip_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def ip_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not ctx.args:
-        await update.message.reply_text("Uso: /ip <ip_o_dominio>")
+        await update.message.reply_text("Uso: /ip 8.8.8.8")
         return
-    target = ctx.args[0]
-    logger.info(f"IP lookup: {target}")
-    await update.message.reply_text(f"GeoIP — {target}\n\n{lookup_ip(target)}")
+    info = get_ip_info(ctx.args[0])
+    if "error" in info:
+        await update.message.reply_text(f"Error: {info['error']}")
+        return
+    await update.message.reply_text(
+        f"\U0001F310 IP: {ctx.args[0]}\n"
+        f"País: {info.get('country_name','?')} ({info.get('country','?')})\n"
+        f"Ciudad: {info.get('city','?')}\nISP: {info.get('org','?')}\n"
+        f"ASN: {info.get('asn','?')}\nLat/Lon: {info.get('latitude','?')}, {info.get('longitude','?')}"
+    )
 
-
-async def whois_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def whois_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not ctx.args:
-        await update.message.reply_text("Uso: /whois <dominio>")
+        await update.message.reply_text("Uso: /whois google.com")
         return
-    domain = ctx.args[0]
-    logger.info(f"WHOIS: {domain}")
-    await update.message.reply_text(f"WHOIS — {domain}\n\n{lookup_whois(domain)}")
+    await update.message.reply_text(f"\U0001F4CB WHOIS {ctx.args[0]}:\n{simple_whois(ctx.args[0])[:3000]}")
 
+async def cidr_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not ctx.args:
+        await update.message.reply_text("Uso: /cidr 192.168.1.0/24")
+        return
+    try:
+        net = ipaddress.ip_network(ctx.args[0], strict=False)
+        await update.message.reply_text(
+            f"\U0001F5A7 Red: {net}\nBroadcast: {net.broadcast_address}\n"
+            f"Máscara: {net.netmask}\nTotal IPs: {net.num_addresses}"
+        )
+    except ValueError as e:
+        await update.message.reply_text(f"CIDR inválido: {e}")
 
-def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+def main() -> None:
+    if not TOKEN:
+        raise ValueError("TELEGRAM_BOT_TOKEN no está configurado en .env")
+    app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("ip", ip_cmd))
     app.add_handler(CommandHandler("whois", whois_cmd))
-    logger.info("Bot IP/WHOIS iniciado.")
+    app.add_handler(CommandHandler("cidr", cidr_cmd))
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()

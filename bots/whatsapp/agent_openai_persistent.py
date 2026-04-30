@@ -1,122 +1,90 @@
+#!/usr/bin/env python3
 """
-Agente IA con OpenAI y memoria persistente en SQLite (WhatsApp + Twilio).
-
-Mejora a `chatgpt_integration.py` (que solo guarda en RAM): aqui el
-historial por numero de telefono persiste en `data/whatsapp_chats.db`
-y sobrevive a reinicios.
-
-Uso:
-    python bots/whatsapp/agent_openai_persistent.py
-
-Requisitos en .env:
-    OPENAI_API_KEY
+agent_openai_persistent.py — Agente OpenAI persistente WhatsApp
+MODIFICAR: cambiar MODEL y SYSTEM_PROMPT según tu caso de uso.
+Requiere: WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN, WHATSAPP_ACCESS_TOKEN, OPENAI_API_KEY
+pip install flask requests openai
 """
+import logging, os, requests
+from flask import Flask, request, jsonify
 
-import json
-import sqlite3
-import sys
+PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_token_secreto")
+ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+PORT         = int(os.getenv("PORT", "5000"))
+WA_API_URL   = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
+app = Flask(__name__)
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def send_message(to: str, text: str) -> dict:
+    """MODIFICAR: agregar más tipos de mensajes (imagen, template, etc.)"""
+    if not ACCESS_TOKEN or not PHONE_ID:
+        logger.error("ACCESS_TOKEN o PHONE_ID no configurados")
+        return {}
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text[:4000]}}
+    r = requests.post(WA_API_URL, headers=headers, json=payload, timeout=10)
+    return r.json()
+
+@app.route("/webhook", methods=["GET"])
+def verify():
+    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+        return request.args.get("hub.challenge", ""), 200
+    return "Token inválido", 403
+
+import openai, sqlite3
 from pathlib import Path
 
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+OPENAI_KEY    = os.getenv("OPENAI_API_KEY", "")
+MODEL         = "gpt-4o-mini"
+DB_PATH       = Path(__file__).parent / "wa_agent_history.db"
+# MODIFICAR: personalizar el agente
+SYSTEM_PROMPT = "Sos un asistente con memoria persistente. Recordás el contexto de conversaciones previas."
+ai_client     = openai.OpenAI(api_key=OPENAI_KEY) if OPENAI_KEY else None
 
-from flask import Flask, request
-from openai import OpenAI
-from twilio.twiml.messaging_response import MessagingResponse
+def init_db():
+    with sqlite3.connect(DB_PATH) as con:
+        con.execute("""CREATE TABLE IF NOT EXISTS messages (
+            phone TEXT, role TEXT, content TEXT, ts DATETIME DEFAULT CURRENT_TIMESTAMP)""")
 
-from bots.shared.env import get_env, require_env
-from bots.shared.logger import get_logger
+def load_history(phone: str) -> list:
+    with sqlite3.connect(DB_PATH) as con:
+        rows = con.execute("SELECT role, content FROM messages WHERE phone=? ORDER BY ts DESC LIMIT 20", (phone,)).fetchall()
+    return [{"role": "system", "content": SYSTEM_PROMPT}] + [{"role": r, "content": c} for r,c in reversed(rows)]
 
-logger = get_logger(__name__)
+def save_msg(phone, role, content):
+    with sqlite3.connect(DB_PATH) as con:
+        con.execute("INSERT INTO messages (phone, role, content) VALUES (?,?,?)", (phone, role, content))
 
-client = OpenAI(api_key=require_env("OPENAI_API_KEY"))
-MODEL = get_env("OPENAI_MODEL", "gpt-4o-mini")
-
-DB_PATH = "data/whatsapp_chats.db"
-Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-
-# MODIFICAR: la personalidad del agente.
-SYSTEM_PROMPT = "Eres un asistente WhatsApp util, conciso y siempre en espanol."
-MAX_HISTORY = 16
-
-
-def init_db() -> None:
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        """CREATE TABLE IF NOT EXISTS chats (
-            phone TEXT PRIMARY KEY, history_json TEXT NOT NULL
-        )"""
-    )
-    conn.commit()
-    conn.close()
-
-
-def load_history(phone: str) -> list[dict]:
-    conn = sqlite3.connect(DB_PATH)
-    row = conn.execute("SELECT history_json FROM chats WHERE phone = ?", (phone,)).fetchone()
-    conn.close()
-    if not row:
-        return [{"role": "system", "content": SYSTEM_PROMPT}]
-    try:
-        return json.loads(row[0])
-    except Exception:
-        return [{"role": "system", "content": SYSTEM_PROMPT}]
-
-
-def save_history(phone: str, history: list[dict]) -> None:
-    if len(history) > MAX_HISTORY:
-        # MODIFICAR: estrategia de poda.
-        history = [history[0]] + history[-(MAX_HISTORY - 1):]
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute(
-        "INSERT OR REPLACE INTO chats (phone, history_json) VALUES (?, ?)",
-        (phone, json.dumps(history, ensure_ascii=False)),
-    )
-    conn.commit()
-    conn.close()
-
-
-def reset_history(phone: str) -> None:
-    save_history(phone, [{"role": "system", "content": SYSTEM_PROMPT}])
-
-
-app = Flask(__name__)
-
-
-@app.route("/whatsapp", methods=["POST"])
+@app.route("/webhook", methods=["POST"])
 def webhook():
-    incoming = request.values.get("Body", "").strip()
-    sender = request.values.get("From", "")
-
-    resp = MessagingResponse()
-    msg = resp.message()
-
-    if incoming.lower() in ("/reset", "reset"):
-        reset_history(sender)
-        msg.body("Historial borrado.")
-        return str(resp)
-
-    history = load_history(sender)
-    history.append({"role": "user", "content": incoming})
-
+    data = request.get_json()
     try:
-        completion = client.chat.completions.create(
-            model=MODEL, messages=history, temperature=0.7
-        )
-        reply = completion.choices[0].message.content.strip()
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    if msg.get("type") != "text": continue
+                    sender = msg["from"]
+                    text   = msg["text"]["body"].strip()
+                    if text == "!reset":
+                        with sqlite3.connect(DB_PATH) as con:
+                            con.execute("DELETE FROM messages WHERE phone=?", (sender,))
+                        send_message(sender, "Historial borrado.")
+                        continue
+                    if not ai_client:
+                        send_message(sender, "OPENAI_API_KEY no configurada.")
+                        continue
+                    save_msg(sender, "user", text)
+                    msgs  = load_history(sender)
+                    resp  = ai_client.chat.completions.create(model=MODEL, messages=msgs, max_tokens=500)
+                    reply = resp.choices[0].message.content
+                    save_msg(sender, "assistant", reply)
+                    send_message(sender, reply)
     except Exception as e:
-        logger.error("Error OpenAI: %s", e)
-        msg.body("Tuve un problema con el modelo. Reintenta.")
-        return str(resp)
-
-    history.append({"role": "assistant", "content": reply})
-    save_history(sender, history)
-    msg.body(reply)
-    return str(resp)
-
+        logger.error("Error: %s", e)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
     init_db()
-    logger.info("Agente OpenAI persistente iniciado. DB: %s", DB_PATH)
-    port = int(get_env("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=PORT, debug=False)

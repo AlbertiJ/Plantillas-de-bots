@@ -1,79 +1,96 @@
-# bots/ctf-osint/wa_05_ctf_toolkit.py
-# ╔══════════════════════════════════════════════════════════════╗
-# ║  DISCLAIMER ÉTICO — Solo uso educativo y entornos autorizados║
-# ║  Desarrollado por: Replit (Rocio) — IA Asistente             ║
-# ║  Dueño del código: Juan Alberti                              ║
-# ║  Repositorio: https://github.com/AlbertiJ/Plantillas-de-bots ║
-# ╚══════════════════════════════════════════════════════════════╝
-# PROPÓSITO: Bot WhatsApp — CTF Toolkit all-in-one (IP, Hash, Encoding, SQLi)
-# Ejecución: python bots/ctf-osint/wa_05_ctf_toolkit.py
-# IDEA FUTURA: sistema de "sessions" para recordar contexto por usuario
+#!/usr/bin/env python3
+"""
+wa_05_ctf_toolkit.py — CTF Toolkit completo para WhatsApp
+SOLO PARA SISTEMAS AUTORIZADOS / EDUCATIVO / CTF.
+MODIFICAR: agregar más comandos en el webhook handler.
+pip install flask requests
+"""
+import logging, os, requests
+from flask import Flask, request, jsonify
 
-import base64, hashlib, codecs, urllib.parse, requests
-from flask import Flask, request
-from twilio.twiml.messaging_response import MessagingResponse
-from bots.shared.env import get_env
-from bots.shared.logger import get_logger
-
-logger = get_logger(__name__)
-PORT = int(get_env("PORT", "5000"))
+PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_token_secreto")
+ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+PORT         = int(os.getenv("PORT", "5000"))
+WA_API_URL   = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
 app = Flask(__name__)
-DISCLAIMER = "⚠️ Solo CTF y entornos con permiso explícito del propietario."
-SQLI_QUICK = ["' OR 1=1--","' OR '1'='1","admin'--","' UNION SELECT NULL,NULL--","' AND SLEEP(5)--"]
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-MENU = f"""CTF Toolkit All-in-One — WhatsApp
+def send_message(to, text):
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text[:4000]}}
+    requests.post(WA_API_URL, headers=headers, json=payload, timeout=10)
 
-OSINT:  ip <target>
-HASH:   hash <texto> | identify <hash>
-ENCODE: b64enc/b64dec/hex/unhex/rot13 <texto>
-CTF:    sqli
+@app.route("/webhook", methods=["GET"])
+def verify():
+    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+        return request.args.get("hub.challenge", ""), 200
+    return "Forbidden", 403
 
-{DISCLAIMER}"""
+import hashlib, base64, codecs, ipaddress
 
-# MODIFICAR: activá o desactivá módulos según lo que necesite tu CTF
-ENABLED = {"ip": True, "hash": True, "encode": True, "sqli": True}
+MORSE = {"A":".-","B":"-...","C":"-.-.","D":"-..","E":".","F":"..-.","G":"--.","H":"....","I":"..","J":".---","K":"-.-","L":".-..","M":"--","N":"-.","O":"---","P":".--.","Q":"--.-","R":".-.","S":"...","T":"-","U":"..-","V":"...-","W":".--","X":"-..-","Y":"-.--","Z":"--..","0":"-----","1":".----","2":"..---","3":"...--","4":"....-","5":".....","6":"-....","7":"--...","8":"---..","9":"----.",".":" "}
 
-def process(cmd: str, arg: str) -> str:
-    if cmd == "ip" and arg and ENABLED["ip"]:
-        try:
-            r = requests.get(f"http://ip-api.com/json/{arg}?fields=status,country,city,isp,query", timeout=8).json()
-            if r.get("status") == "success":
-                return f"IP: {r['query']}\nPaís: {r['country']}\nCiudad: {r['city']}\nISP: {r['isp']}"
-            return f"Error: {r.get('message','sin respuesta')}"
-        except Exception as e: return f"Error: {e}"
-    if cmd == "hash" and arg and ENABLED["hash"]:
-        enc = arg.encode()
-        return f"MD5:    {hashlib.md5(enc).hexdigest()}\nSHA1:   {hashlib.sha1(enc).hexdigest()}\nSHA256: {hashlib.sha256(enc).hexdigest()}"
-    if cmd == "identify" and arg and ENABLED["hash"]:
-        clean = arg.strip()
-        if not all(c in "0123456789abcdefABCDEF" for c in clean): return "No parece un hash hexadecimal"
-        return {32:"MD5",40:"SHA-1",64:"SHA-256",128:"SHA-512"}.get(len(clean),f"Desconocido ({len(clean)} chars)")
-    if ENABLED["encode"]:
-        try:
-            if cmd == "b64enc" and arg: return f"Base64: {base64.b64encode(arg.encode()).decode()}"
-            if cmd == "b64dec" and arg: return f"Decoded: {base64.b64decode(arg).decode('utf-8',errors='replace')}"
-            if cmd == "hex" and arg: return f"HEX: {arg.encode().hex()}"
-            if cmd == "unhex" and arg: return f"Texto: {bytes.fromhex(arg).decode('utf-8',errors='replace')}"
-            if cmd == "rot13" and arg: return f"ROT13: {codecs.encode(arg,'rot_13')}"
-        except Exception as e: return f"Error: {e}"
-    if cmd == "sqli" and ENABLED["sqli"]:
-        return "SQLi Payloads:\n" + "\n".join(f"{i+1}. {p}" for i,p in enumerate(SQLI_QUICK)) + f"\n\n{DISCLAIMER}"
-    return "Comando no reconocido. Enviá 'menu'."
+HELP = """CTF Toolkit WhatsApp:
+HASHES: !hash <txt>, !sha256 <txt>
+ENCODE: !b64 <txt>, !db64 <b64>, !rot13 <txt>, !morse <txt>, !hex <txt>
+NETWORK: !ip <IP>, !cidr <red/mask>
+ATAQUE: !xss, !sqli
+!help — Esta ayuda"""
 
-@app.route("/whatsapp", methods=["POST"])
+def get_ip_info(ip):
+    try: return requests.get(f"https://ipapi.co/{ip}/json/", timeout=6).json()
+    except: return {}
+
+@app.route("/webhook", methods=["POST"])
 def webhook():
-    body = request.values.get("Body", "").strip()
-    resp = MessagingResponse()
-    msg = resp.message()
-    parts = body.split(" ", 1)
-    cmd, arg = parts[0].lower(), parts[1] if len(parts)>1 else ""
-    if cmd in ("menu","inicio","start","hola"): msg.body(MENU)
-    else: msg.body(process(cmd,arg)[:1600])
-    return str(resp)
-
-def main():
-    logger.info(f"CTF Toolkit All-in-One WhatsApp iniciado en puerto {PORT}...")
-    app.run(host="0.0.0.0", port=PORT, debug=False)
+    data = request.get_json()
+    try:
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    if msg.get("type") != "text": continue
+                    sender = msg["from"]
+                    parts  = msg["text"]["body"].strip().split(None, 1)
+                    cmd    = parts[0].lower() if parts else ""
+                    arg    = parts[1] if len(parts) > 1 else ""
+                    # MODIFICAR: agregar más comandos aquí
+                    if cmd == "!help":
+                        send_message(sender, HELP)
+                    elif cmd == "!hash" and arg:
+                        d = arg.encode()
+                        send_message(sender, f"MD5: {hashlib.md5(d).hexdigest()}\nSHA256: {hashlib.sha256(d).hexdigest()}")
+                    elif cmd == "!sha256" and arg:
+                        send_message(sender, f"SHA256: {hashlib.sha256(arg.encode()).hexdigest()}")
+                    elif cmd == "!b64" and arg:
+                        send_message(sender, f"Base64: {base64.b64encode(arg.encode()).decode()}")
+                    elif cmd == "!db64" and arg:
+                        try: send_message(sender, f"Decoded: {base64.b64decode(arg).decode()}")
+                        except: send_message(sender, "Error decodificando base64.")
+                    elif cmd == "!rot13" and arg:
+                        send_message(sender, f"ROT13: {codecs.encode(arg, 'rot_13')}")
+                    elif cmd == "!morse" and arg:
+                        send_message(sender, "Morse: " + " ".join(MORSE.get(c.upper(),"?") for c in arg))
+                    elif cmd == "!hex" and arg:
+                        send_message(sender, f"Hex: {arg.encode().hex()}")
+                    elif cmd == "!ip" and arg:
+                        info = get_ip_info(arg)
+                        send_message(sender, f"IP: {arg}\nPaís: {info.get('country_name','?')}\nISP: {info.get('org','?')}")
+                    elif cmd == "!cidr" and arg:
+                        try:
+                            net = ipaddress.ip_network(arg, strict=False)
+                            send_message(sender, f"Red: {net}\nIPs: {net.num_addresses}\nMask: {net.netmask}")
+                        except: send_message(sender, "CIDR inválido.")
+                    elif cmd == "!xss":
+                        send_message(sender, "XSS:\n<script>alert(1)</script>\n<img src=x onerror=alert(1)>")
+                    elif cmd == "!sqli":
+                        send_message(sender, "SQLi:\n' OR 1=1--\n' UNION SELECT NULL--\nadmin'--")
+                    else:
+                        send_message(sender, "Usá !help para ver los comandos.")
+    except Exception as e:
+        logger.error("Error: %s", e)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
-    main()
+    app.run(host="0.0.0.0", port=PORT, debug=False)

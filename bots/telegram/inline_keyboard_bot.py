@@ -1,78 +1,50 @@
+#!/usr/bin/env python3
 """
-Bot con teclado inline y callbacks para Telegram.
-
-Envia mensajes con botones adjuntos y maneja la respuesta cuando el
-usuario presiona un boton. Util para menus de productos, opciones de
-idioma, confirmaciones, etc.
-
-Uso:
-    python bots/telegram/inline_keyboard_bot.py
-
-Requisitos en .env:
-    TELEGRAM_BOT_TOKEN
+inline_keyboard_bot.py — Bot con teclado inline interactivo
+MODIFICAR: agregar más botones en build_menu() y casos en button_callback().
 """
+import logging, os
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-import sys
-from pathlib import Path
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
 
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+# MODIFICAR: personalizar las opciones del menú
+def build_menu():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("\U0001F4CA Opción 1", callback_data="opt1"),
+         InlineKeyboardButton("\U0001F3AE Opción 2", callback_data="opt2")],
+        [InlineKeyboardButton("\U0001F4A1 Opción 3", callback_data="opt3")],
+        [InlineKeyboardButton("\U0001F6AA Cerrar", callback_data="close")],
+    ])
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import (
-    Application,
-    CallbackQueryHandler,
-    CommandHandler,
-    ContextTypes,
-)
+async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("Elige una opción:", reply_markup=build_menu())
 
-from bots.shared.env import require_env
-from bots.shared.logger import get_logger
+async def menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("\U0001F4CB Menú principal:", reply_markup=build_menu())
 
-logger = get_logger(__name__)
-
-
-# MODIFICAR: cambia los textos y datos de los botones segun tu caso de uso.
-# Puedes crear menus de productos, opciones de idioma, confirmaciones, etc.
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    keyboard = [
-        [
-            InlineKeyboardButton("Opcion 1", callback_data="1"),
-            InlineKeyboardButton("Opcion 2", callback_data="2"),
-        ],
-        # MODIFICAR: agrega mas filas de botones o cambia la distribucion.
-        [InlineKeyboardButton("Opcion 3", callback_data="3")],
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    # MODIFICAR: personaliza el texto del mensaje que acompana a los botones.
-    await update.message.reply_text(
-        "Por favor elige una opcion:", reply_markup=reply_markup
-    )
-
-
-# MODIFICAR: agrega logica real para cada boton en lugar de solo mostrar el ID.
-# Por ejemplo: guardar preferencia en DB, abrir un menu secundario, etc.
-async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def button_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    # Obligatorio responder al callback para no bloquear el cliente.
     await query.answer()
-
-    # MODIFICAR: aqui va la logica real segun el valor de query.data.
-    await query.edit_message_text(text=f"Seleccionaste la opcion: {query.data}")
-
+    # MODIFICAR: agregar más casos según tus callback_data
+    responses = {
+        "opt1": "\U0001F4CA Seleccionaste la Opción 1",
+        "opt2": "\U0001F3AE Seleccionaste la Opción 2",
+        "opt3": "\U0001F4A1 Seleccionaste la Opción 3",
+        "close": "\U0001F6AA Menú cerrado.",
+    }
+    await query.edit_message_text(responses.get(query.data, "Opción desconocida."))
 
 def main() -> None:
-    token = require_env("TELEGRAM_BOT_TOKEN")
-    application = Application.builder().token(token).build()
-
-    application.add_handler(CommandHandler("start", start))
-    # MODIFICAR: puedes pasar un patron regex al CallbackQueryHandler
-    # para filtrar callbacks por prefijo (ej: pattern="^menu_").
-    application.add_handler(CallbackQueryHandler(button_callback))
-
-    logger.info("Bot de teclado inline iniciado.")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
+    if not TOKEN:
+        raise ValueError("TELEGRAM_BOT_TOKEN no está configurado en .env")
+    app = Application.builder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("menu", menu))
+    app.add_handler(CallbackQueryHandler(button_callback))
+    app.run_polling()
 
 if __name__ == "__main__":
     main()

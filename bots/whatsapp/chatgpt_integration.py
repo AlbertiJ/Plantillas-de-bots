@@ -1,96 +1,78 @@
+#!/usr/bin/env python3
 """
-Integracion ChatGPT para WhatsApp (Twilio + Flask + OpenAI).
-
-Reenvia el mensaje del usuario a la API de OpenAI y devuelve la
-respuesta del modelo al chat. Mantiene historial de conversacion en
-memoria por numero de telefono.
-
-NOTA: este es un template de la "version basica" de IA. Las plantillas
-con agente IA mas avanzadas (memoria persistente, herramientas, etc.)
-llegaran en Fase 3.
-
-Uso:
-    python bots/whatsapp/chatgpt_integration.py
-
-Requisitos en .env:
-    OPENAI_API_KEY
+chatgpt_integration.py — Bot ChatGPT para WhatsApp
+MODIFICAR: cambiar MODEL y SYSTEM_PROMPT según tus necesidades.
+Requiere: WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN, WHATSAPP_ACCESS_TOKEN, OPENAI_API_KEY
+pip install flask requests openai
 """
+import logging, os, requests
+from flask import Flask, request, jsonify
 
-import sys
-from pathlib import Path
+PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_token_secreto")
+ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+PORT         = int(os.getenv("PORT", "5000"))
+WA_API_URL   = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
+app = Flask(__name__)
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+def send_message(to: str, text: str) -> dict:
+    """MODIFICAR: agregar más tipos de mensajes (imagen, template, etc.)"""
+    if not ACCESS_TOKEN or not PHONE_ID:
+        logger.error("ACCESS_TOKEN o PHONE_ID no configurados")
+        return {}
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text[:4000]}}
+    r = requests.post(WA_API_URL, headers=headers, json=payload, timeout=10)
+    return r.json()
+
+@app.route("/webhook", methods=["GET"])
+def verify():
+    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+        return request.args.get("hub.challenge", ""), 200
+    return "Token inválido", 403
 
 import openai
-from flask import Flask, request
-from twilio.twiml.messaging_response import MessagingResponse
 
-from bots.shared.env import get_env, require_env
-from bots.shared.logger import get_logger
+OPENAI_KEY    = os.getenv("OPENAI_API_KEY", "")
+MODEL         = "gpt-4o-mini"  # MODIFICAR: gpt-4o para mejor calidad
+# MODIFICAR: personalizar el rol del asistente
+SYSTEM_PROMPT = "Sos un asistente amigable. Respondé de forma concisa en el idioma del usuario."
+history: dict[str, list] = {}
+ai_client = openai.OpenAI(api_key=OPENAI_KEY) if OPENAI_KEY else None
 
-logger = get_logger(__name__)
+def get_ai_response(uid: str, text: str) -> str:
+    msgs = history.setdefault(uid, [{"role": "system", "content": SYSTEM_PROMPT}])
+    msgs.append({"role": "user", "content": text})
+    if len(msgs) > 21: msgs = [msgs[0]] + msgs[-20:]
+    if not ai_client:
+        return "OPENAI_API_KEY no configurada."
+    resp  = ai_client.chat.completions.create(model=MODEL, messages=msgs, max_tokens=500)
+    reply = resp.choices[0].message.content
+    msgs.append({"role": "assistant", "content": reply})
+    return reply
 
-app = Flask(__name__)
-openai.api_key = require_env("OPENAI_API_KEY")
-
-# MODIFICAR: en produccion usa Redis o una DB indexada por numero de telefono.
-# El dict en memoria se pierde si reinicias el proceso.
-conversations: dict[str, list[dict]] = {}
-
-
-def get_chatgpt_response(sender: str, message: str) -> str:
-    if sender not in conversations:
-        conversations[sender] = [
-            # MODIFICAR: el system prompt define el comportamiento y personalidad
-            # del bot. Cambialo segun el caso de uso.
-            {
-                "role": "system",
-                "content": "Eres un asistente de WhatsApp util y conciso.",
-            }
-        ]
-
-    conversations[sender].append({"role": "user", "content": message})
-
-    # MODIFICAR: ajusta el limite de mensajes para controlar el costo de tokens.
-    if len(conversations[sender]) > 10:
-        conversations[sender] = [conversations[sender][0]] + conversations[sender][-9:]
-
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json()
     try:
-        response = openai.chat.completions.create(
-            # MODIFICAR: puedes usar 'gpt-4o' para mejor calidad (mas costoso).
-            model=get_env("OPENAI_MODEL", "gpt-3.5-turbo"),
-            messages=conversations[sender],
-            # MODIFICAR: ajusta max_tokens segun la longitud de respuesta que necesitas.
-            max_tokens=250,
-        )
-        reply = response.choices[0].message.content.strip()
-        conversations[sender].append({"role": "assistant", "content": reply})
-        return reply
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    if msg.get("type") != "text": continue
+                    sender = msg["from"]
+                    text   = msg["text"]["body"].strip()
+                    if text == "!reset":
+                        history.pop(sender, None)
+                        send_message(sender, "Historial borrado.")
+                    else:
+                        send_message(sender, get_ai_response(sender, text))
     except Exception as e:
-        logger.error("Error de OpenAI: %s", e)
-        return "Lo siento, tengo problemas para responder ahora."
-
-
-@app.route("/whatsapp", methods=["POST"])
-def whatsapp_webhook():
-    incoming_msg = request.values.get("Body", "").strip()
-    sender = request.values.get("From", "")
-
-    resp = MessagingResponse()
-    msg = resp.message()
-
-    # MODIFICAR: agrega mas comandos especiales ademas de /reset.
-    if incoming_msg.lower() == "/reset":
-        conversations[sender] = []
-        msg.body("Historial de conversacion borrado.")
-    else:
-        ai_reply = get_chatgpt_response(sender, incoming_msg)
-        msg.body(ai_reply)
-
-    return str(resp)
-
+        logger.error("Error: %s", e)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
-    port = int(get_env("PORT", "5000"))
-    app.run(host="0.0.0.0", port=port)
+    if not all([PHONE_ID, ACCESS_TOKEN]):
+        raise ValueError("Configurá las variables WA en .env")
+    app.run(host="0.0.0.0", port=PORT, debug=False)

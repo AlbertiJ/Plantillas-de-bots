@@ -1,69 +1,67 @@
-# bots/ctf-osint/wa_01_ip_geo.py
-# ╔══════════════════════════════════════════════════════════════╗
-# ║  DISCLAIMER ÉTICO — Solo uso educativo y entornos autorizados║
-# ║  Desarrollado por: Replit (Rocio) — IA Asistente             ║
-# ║  Dueño del código: Juan Alberti                              ║
-# ║  Repositorio: https://github.com/AlbertiJ/Plantillas-de-bots ║
-# ╚══════════════════════════════════════════════════════════════╝
-# PROPÓSITO: Bot WhatsApp — IP Lookup + GeoIP (Flask + Twilio)
-# Ejecución: python bots/ctf-osint/wa_01_ip_geo.py
-# IDEA FUTURA: agregar lookup de ASN y detección de VPN/proxy/Tor
+#!/usr/bin/env python3
+"""
+wa_01_ip_geo.py — CTF/OSINT: IP/Geo para WhatsApp
+MODIFICAR: usar ipinfo.io con token para más requests en producción.
+pip install flask requests
+"""
+import logging, os, requests
+from flask import Flask, request, jsonify
 
-import requests
-from flask import Flask, request
-from twilio.twiml.messaging_response import MessagingResponse
-from bots.shared.env import get_env
-from bots.shared.logger import get_logger
-
-logger = get_logger(__name__)
-PORT = int(get_env("PORT", "5000"))  # MODIFICAR: puerto del servidor Flask
+PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_token_secreto")
+ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+PORT         = int(os.getenv("PORT", "5000"))
+WA_API_URL   = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
 app = Flask(__name__)
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+def send_message(to, text):
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text[:4000]}}
+    requests.post(WA_API_URL, headers=headers, json=payload, timeout=10)
 
-def lookup_ip(target: str) -> str:
+@app.route("/webhook", methods=["GET"])
+def verify():
+    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+        return request.args.get("hub.challenge", ""), 200
+    return "Forbidden", 403
+
+import ipaddress
+
+def get_ip_info(ip):
     try:
-        r = requests.get(
-            f"http://ip-api.com/json/{target}?fields=status,message,country,regionName,city,isp,query",
-            timeout=10
-        )
-        data = r.json()
-        if data.get("status") != "success":
-            return f"Error: {data.get('message', 'sin respuesta')}"
-        return (
-            f"IP: {data['query']}\n"
-            f"País: {data['country']}\n"
-            f"Región: {data['regionName']}\n"
-            f"Ciudad: {data['city']}\n"
-            f"ISP: {data['isp']}"
-        )
+        return requests.get(f"https://ipapi.co/{ip}/json/", timeout=8).json()
     except Exception as e:
-        logger.error(f"lookup_ip error: {e}")
-        return f"Error: {e}"
+        return {"error": str(e)}
 
-
-@app.route("/whatsapp", methods=["POST"])
+@app.route("/webhook", methods=["POST"])
 def webhook():
-    # MODIFICAR: la URL debe coincidir con la configurada en Twilio Sandbox
-    body = request.values.get("Body", "").strip().lower()
-    resp = MessagingResponse()
-    msg = resp.message()
-    parts = body.split(" ", 1)
-    cmd, arg = parts[0], parts[1] if len(parts) > 1 else ""
-
-    if cmd in ("menu", "inicio", "start"):
-        msg.body("Bot IP/GeoIP — WhatsApp\n\nip <target>  — IP Lookup\n\n⚠️ Solo uso educativo.")
-    elif cmd == "ip" and arg:
-        logger.info(f"IP lookup: {arg}")
-        msg.body(lookup_ip(arg))
-    else:
-        msg.body("Enviá 'menu' para ver los comandos.")
-    return str(resp)
-
-
-def main():
-    logger.info(f"Bot IP/GeoIP WhatsApp iniciado en puerto {PORT}...")
-    app.run(host="0.0.0.0", port=PORT, debug=False)  # MODIFICAR: debug=False en producción
-
+    data = request.get_json()
+    try:
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    if msg.get("type") != "text": continue
+                    sender = msg["from"]
+                    parts  = msg["text"]["body"].strip().split()
+                    cmd    = parts[0].lower() if parts else ""
+                    arg    = parts[1] if len(parts) > 1 else ""
+                    if cmd in ["!ip","!geo","!asn"] and arg:
+                        info = get_ip_info(arg)
+                        if "error" in info:
+                            send_message(sender, f"Error: {info['error']}")
+                        elif cmd == "!asn":
+                            send_message(sender, f"ASN: {info.get('asn','?')} — {info.get('org','?')}")
+                        elif cmd == "!geo":
+                            send_message(sender, f"Geo {arg}: {info.get('city','?')}, {info.get('country_name','?')}")
+                        else:
+                            send_message(sender, f"IP: {arg}\nPaís: {info.get('country_name','?')}\nCiudad: {info.get('city','?')}\nISP: {info.get('org','?')}")
+                    else:
+                        send_message(sender, "Comandos: !ip <IP>, !geo <IP>, !asn <IP>")
+    except Exception as e:
+        logger.error("Error: %s", e)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
-    main()
+    app.run(host="0.0.0.0", port=PORT, debug=False)

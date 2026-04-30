@@ -1,85 +1,74 @@
-# bots/ctf-osint/tg_02_dns_recon.py
-# ╔══════════════════════════════════════════════════════════════╗
-# ║  DISCLAIMER ÉTICO — Solo uso educativo y entornos autorizados║
-# ║  Desarrollado por: Replit (Rocio) — IA Asistente             ║
-# ║  Dueño del código: Juan Alberti                              ║
-# ║  Repositorio: https://github.com/AlbertiJ/Plantillas-de-bots ║
-# ╚══════════════════════════════════════════════════════════════╝
-# PROPÓSITO: Bot Telegram — DNS Recon (A, MX, NS, TXT, CNAME, SOA)
-# Ejecución: python bots/ctf-osint/tg_02_dns_recon.py
-# IDEA FUTURA: detección de subdominios con wordlist configurable
-
+#!/usr/bin/env python3
+"""
+tg_02_dns_recon.py — CTF/OSINT: Reconocimiento DNS completo para Telegram
+MODIFICAR: agregar más tipos de registro o resolvers alternativos en dns_lookup().
+pip install python-telegram-bot dnspython
+"""
+import logging, os
 import dns.resolver
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from bots.shared.env import require_env
-from bots.shared.logger import get_logger
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-logger = get_logger(__name__)
-TOKEN = require_env("TELEGRAM_BOT_TOKEN")  # MODIFICAR: nombre en tu .env
-RECORD_TYPES = ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA"]
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
 
-
-def resolve_records(domain: str, rtype: str) -> list[str]:
+def dns_lookup(domain: str, rtype: str) -> list[str]:
+    # MODIFICAR: agregar resolvers alternativos (8.8.8.8, 1.1.1.1)
     try:
-        answers = dns.resolver.resolve(domain, rtype, lifetime=8)
-        return [str(r) for r in answers]
-    except dns.resolver.NoAnswer:
-        return []
-    except dns.resolver.NXDOMAIN:
-        return ["NXDOMAIN — dominio no encontrado"]
+        return [str(r) for r in dns.resolver.resolve(domain, rtype, lifetime=8)]
     except Exception as e:
-        return [f"Error: {e}"]
+        return [f"Sin registros {rtype}: {e}"]
 
-
-def full_recon(domain: str) -> str:
-    lines = [f"DNS Recon — {domain}\n"]
-    for rtype in RECORD_TYPES:
-        records = resolve_records(domain, rtype)
-        if records:
-            lines.append(f"[{rtype}]")
-            for r in records[:5]:  # MODIFICAR: límite de resultados por tipo
-                lines.append(f"  {r}")
-    return "\n".join(lines) if len(lines) > 1 else f"Sin registros DNS para {domain}"
-
-
-async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
-        "Bot DNS Recon\n\n"
-        "/dns <dominio>   — Recon completo\n"
-        "/a <dominio>     — Registros A\n"
-        "/mx <dominio>    — Registros MX\n"
-        "/txt <dominio>   — Registros TXT\n\n"
-        "⚠️ Solo entornos autorizados."
+        "\U0001F50E DNS Recon Bot\n\n"
+        "/dns <dominio> — Todos los registros\n"
+        "/mx <dominio> — Servidores de correo\n"
+        "/sub <dominio> — Subdominios comunes"
     )
 
-
-async def dns_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def dns_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not ctx.args:
-        await update.message.reply_text("Uso: /dns <dominio>")
+        await update.message.reply_text("Uso: /dns example.com")
         return
-    logger.info(f"DNS full recon: {ctx.args[0]}")
-    await update.message.reply_text(full_recon(ctx.args[0])[:4000])
+    domain  = ctx.args[0]
+    results = []
+    for rtype in ["A", "AAAA", "MX", "NS", "TXT", "SOA"]:
+        records = dns_lookup(domain, rtype)
+        results.append(f"{rtype}:\n" + "\n".join(f"  {r}" for r in records))
+    await update.message.reply_text(f"DNS {domain}:\n\n" + "\n\n".join(results))
 
-
-async def record_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def mx_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     if not ctx.args:
-        await update.message.reply_text(f"Uso: /{ctx.command} <dominio>")
+        await update.message.reply_text("Uso: /mx gmail.com")
         return
-    rtype = ctx.command.upper()
-    records = resolve_records(ctx.args[0], rtype)
-    await update.message.reply_text(f"[{rtype}] {ctx.args[0]}\n" + ("\n".join(records) or "Sin resultados"))
+    records = dns_lookup(ctx.args[0], "MX")
+    await update.message.reply_text(f"\U0001F4E7 MX {ctx.args[0]}:\n" + "\n".join(records))
 
+async def sub_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+    if not ctx.args:
+        await update.message.reply_text("Uso: /sub example.com")
+        return
+    domain = ctx.args[0]
+    # MODIFICAR: agregar más subdominios según el caso de uso
+    SUBS = ["www","mail","ftp","api","dev","staging","admin","vpn","ns1","ns2","smtp","pop"]
+    found = []
+    for sub in SUBS:
+        records = dns_lookup(f"{sub}.{domain}", "A")
+        if not records[0].startswith("Sin registros"):
+            found.append(f"{sub}.{domain} -> {records[0]}")
+    msg = "\n".join(found) if found else "No se encontraron subdominios comunes."
+    await update.message.reply_text(f"\U0001F310 Subdominios de {domain}:\n{msg}")
 
-def main():
-    app = ApplicationBuilder().token(TOKEN).build()
+def main() -> None:
+    if not TOKEN:
+        raise ValueError("TELEGRAM_BOT_TOKEN no está configurado en .env")
+    app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("dns", dns_cmd))
-    for rtype in ["a", "mx", "txt", "ns", "cname"]:  # MODIFICAR: agregar/quitar tipos
-        app.add_handler(CommandHandler(rtype, record_cmd))
-    logger.info("Bot DNS Recon iniciado.")
+    app.add_handler(CommandHandler("mx", mx_cmd))
+    app.add_handler(CommandHandler("sub", sub_cmd))
     app.run_polling()
-
 
 if __name__ == "__main__":
     main()

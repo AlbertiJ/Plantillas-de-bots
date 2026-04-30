@@ -1,74 +1,90 @@
-# bots/ctf-osint/wa_02_headers_tech.py
-# ╔══════════════════════════════════════════════════════════════╗
-# ║  DISCLAIMER ÉTICO — Solo uso educativo y entornos autorizados║
-# ║  Desarrollado por: Replit (Rocio) — IA Asistente             ║
-# ║  Dueño del código: Juan Alberti                              ║
-# ║  Repositorio: https://github.com/AlbertiJ/Plantillas-de-bots ║
-# ╚══════════════════════════════════════════════════════════════╝
-# PROPÓSITO: Bot WhatsApp — HTTP Headers Inspector + Tech Fingerprinting
-# Ejecución: python bots/ctf-osint/wa_02_headers_tech.py
-# IDEA FUTURA: puntuar seguridad de las cabeceras (A-F score)
+#!/usr/bin/env python3
+"""
+wa_02_headers_tech.py — CTF/OSINT: Headers HTTP y tecnologías WhatsApp
+MODIFICAR: agregar más headers de fingerprinting.
+pip install flask requests
+"""
+import logging, os, requests
+from flask import Flask, request, jsonify
 
-import requests
-from flask import Flask, request
-from twilio.twiml.messaging_response import MessagingResponse
-from bots.shared.env import get_env
-from bots.shared.logger import get_logger
-
-logger = get_logger(__name__)
-PORT = int(get_env("PORT", "5000"))
+PHONE_ID     = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "mi_token_secreto")
+ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+PORT         = int(os.getenv("PORT", "5000"))
+WA_API_URL   = f"https://graph.facebook.com/v19.0/{PHONE_ID}/messages"
 app = Flask(__name__)
+logging.basicConfig(format="%(asctime)s [%(levelname)s] %(message)s", level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# MODIFICAR: agregar más indicadores de tecnología según necesidad del CTF
-TECH_SIGNATURES = {
-    "server": {"apache":"Apache","nginx":"Nginx","iis":"IIS","cloudflare":"Cloudflare"},
-    "x-powered-by": {"php":"PHP","asp.net":"ASP.NET","express":"Express.js","next.js":"Next.js"},
-}
-SECURITY_HEADERS = ["Strict-Transport-Security","X-Content-Type-Options","X-Frame-Options","Content-Security-Policy"]
+def send_message(to, text):
+    headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "Content-Type": "application/json"}
+    payload = {"messaging_product": "whatsapp", "to": to, "type": "text", "text": {"body": text[:4000]}}
+    requests.post(WA_API_URL, headers=headers, json=payload, timeout=10)
 
+@app.route("/webhook", methods=["GET"])
+def verify():
+    if request.args.get("hub.verify_token") == VERIFY_TOKEN:
+        return request.args.get("hub.challenge", ""), 200
+    return "Forbidden", 403
 
-def analyze_headers(url: str) -> str:
-    if not url.startswith(("http://","https://")):
-        url = "https://" + url
+import ssl, socket
+
+def get_headers(url):
+    # MODIFICAR: agregar más headers de interés
     try:
-        r = requests.get(url, timeout=10, allow_redirects=True, headers={"User-Agent":"CTF-Bot/1.0"})
-        lines = [f"Headers de {url} [HTTP {r.status_code}]\n"]
-        tech_found = []
-        for header, sigs in TECH_SIGNATURES.items():
-            val = r.headers.get(header, "").lower()
-            for sig, name in sigs.items():
-                if sig in val: tech_found.append(name)
-        if tech_found: lines.append(f"Tecnología: {', '.join(tech_found)}")
-        lines.append("\nSeguridad:")
-        for h in SECURITY_HEADERS:
-            lines.append(f"  {'OK' if h in r.headers else 'NO'}  {h}")
-        for h in ["Server","X-Powered-By","X-Generator"]:
-            if h in r.headers: lines.append(f"{h}: {r.headers[h][:60]}")
-        return "\n".join(lines)
+        if not url.startswith("http"): url = "https://" + url
+        r = requests.get(url, timeout=10, allow_redirects=True, headers={"User-Agent": "Mozilla/5.0"})
+        interest = ["server","x-powered-by","x-frame-options","content-security-policy","strict-transport-security"]
+        return {k: v for k,v in r.headers.items() if k.lower() in interest}, r.status_code
     except Exception as e:
-        return f"Error: {e}"
+        return {}, f"Error: {e}"
 
+def get_ssl_info(domain):
+    try:
+        ctx = ssl.create_default_context()
+        with ctx.wrap_socket(socket.socket(), server_hostname=domain) as s:
+            s.settimeout(8); s.connect((domain, 443))
+            cert = s.getpeercert()
+        issuer = dict(x[0] for x in cert.get("issuer", []))
+        return f"Emisor: {issuer.get('organizationName','?')}\nExpira: {cert.get('notAfter','?')}"
+    except Exception as e:
+        return f"Error SSL: {e}"
 
-@app.route("/whatsapp", methods=["POST"])
+@app.route("/webhook", methods=["POST"])
 def webhook():
-    body = request.values.get("Body", "").strip().lower()
-    resp = MessagingResponse()
-    msg = resp.message()
-    parts = body.split(" ", 1)
-    cmd, arg = parts[0], parts[1] if len(parts) > 1 else ""
-    if cmd in ("menu","inicio"):
-        msg.body("headers <url>  — Analizar cabeceras HTTP\n⚠️ Solo uso autorizado.")
-    elif cmd == "headers" and arg:
-        msg.body(analyze_headers(arg)[:1600])
-    else:
-        msg.body("Enviá 'menu' para ver comandos.")
-    return str(resp)
-
-
-def main():
-    logger.info(f"Bot Headers/Tech iniciado en puerto {PORT}...")
-    app.run(host="0.0.0.0", port=PORT, debug=False)
-
+    data = request.get_json()
+    try:
+        for entry in data.get("entry", []):
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    if msg.get("type") != "text": continue
+                    sender = msg["from"]
+                    parts  = msg["text"]["body"].strip().split()
+                    cmd    = parts[0].lower() if parts else ""
+                    arg    = parts[1] if len(parts) > 1 else ""
+                    if cmd == "!headers" and arg:
+                        headers, status = get_headers(arg)
+                        lines = [f"Status: {status}"] + [f"{k}: {v[:80]}" for k,v in headers.items()]
+                        send_message(sender, f"Headers {arg}:\n" + "\n".join(lines))
+                    elif cmd == "!ssl" and arg:
+                        import urllib.parse
+                        domain = urllib.parse.urlparse(arg).netloc or arg
+                        send_message(sender, f"SSL {domain}:\n{get_ssl_info(domain)}")
+                    elif cmd == "!tech" and arg:
+                        headers, _ = get_headers(arg)
+                        techs = []
+                        srv = (headers.get("server","") + headers.get("Server","")).lower()
+                        if "nginx" in srv: techs.append("Nginx")
+                        if "apache" in srv: techs.append("Apache")
+                        if "cloudflare" in srv: techs.append("Cloudflare")
+                        powered = headers.get("x-powered-by","")
+                        if powered: techs.append(powered)
+                        send_message(sender, f"Tecnologías {arg}:\n" + (", ".join(techs) if techs else "No detectadas"))
+                    else:
+                        send_message(sender, "Comandos: !headers <url>, !tech <url>, !ssl <dominio>")
+    except Exception as e:
+        logger.error("Error: %s", e)
+    return jsonify({"status": "ok"}), 200
 
 if __name__ == "__main__":
-    main()
+    app.run(host="0.0.0.0", port=PORT, debug=False)
