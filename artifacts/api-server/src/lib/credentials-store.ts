@@ -22,6 +22,10 @@ interface IndexFile {
 
 ensureDir(CREDS_DIR);
 
+// Contraseña inicial guardada en memoria — se borra tras la primera lectura.
+// NUNCA se escribe en disco. Solo disponible durante el primer arranque.
+let _initialPasswordOnce: string | null = null;
+
 function credPath(id: string): string {
   return `${CREDS_DIR}/cred-${id}.json`;
 }
@@ -97,7 +101,20 @@ export function bootstrap(): { created: boolean; initialPassword?: string } {
   writeCred(rec);
   writeIndex({ activeId: id });
 
+  // Guardar en memoria para que el panel web pueda mostrarla una sola vez
+  _initialPasswordOnce = initialPassword;
+
   return { created: true, initialPassword };
+}
+
+/**
+ * Retorna la contraseña inicial generada en este arranque y la borra de memoria.
+ * Solo funciona UNA VEZ por arranque del servidor. Luego devuelve null.
+ */
+export function consumeInitialPassword(): string | null {
+  const pwd = _initialPasswordOnce;
+  _initialPasswordOnce = null;
+  return pwd;
 }
 
 export function getActive(): CredentialRecord | null {
@@ -144,6 +161,9 @@ export function changePassword(currentPassword: string, newPassword: string): { 
   writeCred(newRec);
   writeIndex({ activeId: newId });
   deleteCred(oldId);
+
+  // Limpiar la contraseña inicial de memoria si aún no fue consumida
+  _initialPasswordOnce = null;
 
   logger.info({ oldId, newId }, "Password rotated; credential file renamed");
   return { ok: true, newId };
