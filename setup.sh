@@ -147,7 +147,7 @@ else
 echo -e "${BOLD}║${NC}   ${CYAN}ℹ  Ya existe una cuenta configurada.${NC}                 ${BOLD}║${NC}"
 echo -e "${BOLD}║${NC}     Ingresá con tu contraseña personal.              ${BOLD}║${NC}"
 echo -e "${BOLD}║${NC}   ${YELLOW}¿Olvidaste la contraseña? Ejecutá:${NC}                   ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}     rm -rf data/credentials/ && ./start.sh           ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}     rm -rf artifacts/api-server/data/credentials/ && ./start.sh           ${BOLD}║${NC}"
 echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${NC}"
 fi
 
