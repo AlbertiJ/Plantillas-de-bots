@@ -85,6 +85,56 @@ El setup instala todas las dependencias, inicia los servicios y muestra la contr
 
 ---
 
+
+## 🧪 Verificar la instalación
+
+Si el setup falla, los bots no aparecen o algo no funciona, ejecutá el script de verificación **antes o después del setup**:
+
+```bash
+python3 check_install.py
+```
+
+No requiere instalar nada extra — usa solo la librería estándar de Python.
+Al finalizar imprime un resumen en consola y guarda `check_report.txt` en la raíz del proyecto.
+
+### Qué verifica (7 secciones)
+
+| # | Sección | Qué chequea |
+|---|---|---|
+| 1 | **Entorno** | Python ≥ 3.10, pip, Node.js ≥ 16, pnpm, git |
+| 2 | **Estructura del repo** | Carpetas, `setup.sh`, `start.sh`, `package.json` |
+| 3 | **Archivos de bots** | Los 35 archivos `.py` del catálogo (detecta los que faltan) |
+| 4 | **Paquetes Python** | Todos los de `bots/requirements.txt` — requeridos y opcionales |
+| 5 | **Archivo .env** | Si existe y si cada variable tiene un valor real (no placeholder) |
+| 6 | **Panel admin** | `node_modules` instalados y si la API está respondiendo |
+| 7 | **Conectividad** | Acceso a internet, Telegram API y OpenAI |
+
+Para cada error encontrado muestra el **comando exacto para resolverlo**.
+
+### Errores comunes y solución rápida
+
+| Error | Solución |
+|---|---|
+| `Permission denied` al correr `setup.sh` | Ya corregido — actualizá con `git pull origin main` |
+| `No such file or directory` (archivo .py) | `git pull origin main` para descargar los bots faltantes |
+| `ModuleNotFoundError: No module named 'telegram'` | `pip install -r bots/requirements.txt` |
+| Token inválido / `Unauthorized` | Editá `.env` y completá `TELEGRAM_BOT_TOKEN` con tu token real |
+| `pnpm` no encontrado | `npm install -g pnpm` |
+| Python no encontrado | `sudo apt install python3 python3-pip` (Ubuntu/Debian) |
+| `node_modules` no instalados | `pnpm install` |
+
+### Cómo configurar el archivo .env
+
+Si aún no tenés el archivo `.env`:
+
+```bash
+cp .env.example .env    # copiá la plantilla incluida en el repo
+nano .env               # completá tus tokens/credenciales
+```
+
+El archivo `.env.example` incluye todas las variables documentadas con instrucciones para obtener cada credencial.
+
+---
 ## 🔁 Reiniciar sin reinstalar
 
 Después del setup inicial, para volver a iniciar los servicios usá:
