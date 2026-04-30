@@ -116,6 +116,7 @@ const translations: Record<Lang, Record<string, string>> = {
     navGroupTemplates: "Templates",
     navGroupGuides: "Guides",
     navGroupTools: "Tools",
+    navAdmin: "Admin Panel",
 
     controlsTitle: "Display Controls",
     brightness: "Brightness",
@@ -278,6 +279,7 @@ const translations: Record<Lang, Record<string, string>> = {
     navGroupTemplates: "Plantillas",
     navGroupGuides: "Guías",
     navGroupTools: "Herramientas",
+    navAdmin: "Panel Administrador",
 
     controlsTitle: "Controles de pantalla",
     brightness: "Brillo",
