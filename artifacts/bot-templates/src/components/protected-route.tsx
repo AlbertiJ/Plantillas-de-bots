@@ -5,13 +5,20 @@ import { useLanguage } from "@/context/language";
 import { Spinner } from "@/components/ui/spinner";
 
 export function ProtectedRoute({ children }: { children: ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, needsPasswordChange } = useAuth();
   const { t } = useLanguage();
-  const [, navigate] = useLocation();
+  const [location, navigate] = useLocation();
 
   useEffect(() => {
-    if (!loading && !user) navigate("/login");
-  }, [loading, user, navigate]);
+    if (!loading && !user) {
+      navigate("/login");
+      return;
+    }
+    // Si el usuario aún tiene la contraseña inicial, redirigir al panel admin
+    if (!loading && user && needsPasswordChange && location !== "/admin") {
+      navigate("/admin");
+    }
+  }, [loading, user, needsPasswordChange, location, navigate]);
 
   if (loading) {
     return (
