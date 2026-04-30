@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Bot, Lock, User as UserIcon, Eye, EyeOff } from "lucide-react";
+import { Bot, Lock, User as UserIcon, Eye, EyeOff, Copy, Check, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/auth";
 import { useLanguage } from "@/context/language";
+import { apiFetch } from "@/lib/api";
+
+interface FirstRunData {
+  firstRun: boolean;
+  username?: string;
+  password?: string;
+}
 
 export default function LoginPage() {
   const { user, login, loading } = useAuth();
@@ -17,10 +24,33 @@ export default function LoginPage() {
   const [show, setShow] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [firstRun, setFirstRun] = useState<FirstRunData | null>(null);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!loading && user) navigate("/");
   }, [loading, user, navigate]);
+
+  // Al cargar la página, consultar si es el primer arranque
+  useEffect(() => {
+    apiFetch<FirstRunData>("/api/auth/first-run")
+      .then((data) => {
+        if (data.firstRun) {
+          setFirstRun(data);
+          // Pre-llenar la contraseña para facilitar el primer login
+          if (data.password) setPassword(data.password);
+        }
+      })
+      .catch(() => {/* silencioso — el servidor puede no estar listo aún */});
+  }, []);
+
+  const copyPassword = () => {
+    if (!firstRun?.password) return;
+    navigator.clipboard.writeText(firstRun.password).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +70,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-10">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-md space-y-4">
         <div className="flex flex-col items-center gap-3 mb-6">
           <div className="rounded-full bg-primary/10 p-4 border border-primary/20">
             <Bot className="h-8 w-8 text-primary" />
@@ -48,6 +78,38 @@ export default function LoginPage() {
           <h1 className="text-2xl font-bold">{t("appTitle")}</h1>
           <p className="text-sm text-muted-foreground text-center max-w-sm">{t("loginSubtitle")}</p>
         </div>
+
+        {/* Banner de primer arranque — visible solo la primera vez */}
+        {firstRun?.firstRun && firstRun.password && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 space-y-3">
+            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
+              <ShieldAlert className="h-5 w-5 shrink-0" />
+              <span className="font-semibold text-sm">{t("loginFirstRunTitle")}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("loginFirstRunDesc")}</p>
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground w-20">{t("loginFirstRunUser")}</span>
+                <code className="font-mono bg-muted px-2 py-0.5 rounded">{firstRun.username}</code>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground w-20">{t("loginFirstRunPass")}</span>
+                <code className="font-mono bg-muted px-2 py-0.5 rounded flex-1 break-all">{firstRun.password}</code>
+                <button
+                  onClick={copyPassword}
+                  className="shrink-0 p-1 rounded hover:bg-muted text-muted-foreground"
+                  title={t("loginFirstRunCopy")}
+                  data-testid="button-copy-initial-password"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            </div>
+            <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+              ⚠️ {t("loginFirstRunWarning")}
+            </p>
+          </div>
+        )}
 
         <Card>
           <CardHeader>
@@ -108,9 +170,11 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <p className="text-[11px] text-muted-foreground mt-4 leading-snug">
-              {t("loginFirstHint")}
-            </p>
+            {!firstRun?.firstRun && (
+              <p className="text-[11px] text-muted-foreground mt-4 leading-snug">
+                {t("loginFirstHint")}
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>
