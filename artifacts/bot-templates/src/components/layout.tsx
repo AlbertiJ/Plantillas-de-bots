@@ -5,6 +5,7 @@ import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useLanguage } from "@/context/language";
+import { FloatingControls } from "@/components/floating-controls";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -20,15 +21,21 @@ export function Layout({ children }: LayoutProps) {
     if (!theme) setTheme("dark");
   }, [theme, setTheme]);
 
-  const navItems = [
+  const navTemplates = [
     { href: "/", label: t("navHome"), icon: Terminal },
     { href: "/telegram", label: t("navTelegram"), icon: Bot },
     { href: "/whatsapp", label: t("navWhatsApp"), icon: MessageSquare },
+  ];
+
+  const navGuides = [
     { href: "/setup", label: t("navSetup"), icon: Terminal },
     { href: "/tips", label: t("navTips"), icon: Lightbulb },
     { href: "/deploy", label: t("navDeploy"), icon: Server },
     { href: "/credentials", label: t("navCredentials"), icon: Key },
     { href: "/errors", label: t("navErrors"), icon: AlertCircle },
+  ];
+
+  const navTools = [
     { href: "/builder", label: t("navBuilder"), icon: Wrench },
     { href: "/libraries", label: t("navLibraries"), icon: Library },
     { href: "/ctf-osint", label: t("navCtfOsint"), icon: ShieldAlert },
@@ -37,6 +44,32 @@ export function Layout({ children }: LayoutProps) {
     { href: "/status", label: t("navStatus"), icon: Activity },
   ];
 
+  const NavGroup = ({ items, label, onNav }: { items: typeof navTemplates; label: string; onNav?: () => void }) => (
+    <div className="mb-1">
+      <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 select-none">
+        {label}
+      </p>
+      {items.map((item) => {
+        const isActive = location === item.href;
+        return (
+          <Link key={item.href} href={item.href} onClick={onNav}>
+            <div
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer transition-colors ${
+                isActive
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+              data-testid={`link-nav-${item.href.replace("/", "") || "home"}`}
+            >
+              <item.icon className="h-4 w-4 flex-shrink-0" />
+              <span className="truncate text-sm">{item.label}</span>
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+
   const SidebarContent = ({ onNav }: { onNav?: () => void }) => (
     <div className="flex flex-col h-full py-4">
       <div className="px-4 sm:px-6 py-3 flex items-center gap-2 font-bold text-base sm:text-lg mb-2 border-b border-border">
@@ -44,25 +77,12 @@ export function Layout({ children }: LayoutProps) {
         <span className="truncate">{t("appTitle")}</span>
       </div>
 
-      <nav className="flex-1 px-2 sm:px-4 space-y-0.5 text-sm font-medium overflow-y-auto">
-        {navItems.map((item) => {
-          const isActive = location === item.href;
-          return (
-            <Link key={item.href} href={item.href} onClick={onNav}>
-              <div
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-md cursor-pointer transition-colors ${
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-                data-testid={`link-nav-${item.href.replace("/", "") || "home"}`}
-              >
-                <item.icon className="h-4 w-4 flex-shrink-0" />
-                <span className="truncate">{item.label}</span>
-              </div>
-            </Link>
-          );
-        })}
+      <nav className="flex-1 px-2 sm:px-4 overflow-y-auto">
+        <NavGroup items={navTemplates} label={t("navGroupTemplates")} onNav={onNav} />
+        <div className="border-t border-border/40 my-1" />
+        <NavGroup items={navGuides} label={t("navGroupGuides")} onNav={onNav} />
+        <div className="border-t border-border/40 my-1" />
+        <NavGroup items={navTools} label={t("navGroupTools")} onNav={onNav} />
       </nav>
 
       <div className="px-4 pt-4 border-t border-border space-y-1 mt-2">
@@ -126,15 +146,8 @@ export function Layout({ children }: LayoutProps) {
         </div>
       </main>
 
-      {/* Floating Language Toggle — always visible, right side */}
-      <button
-        onClick={() => setLang(lang === "es" ? "en" : "es")}
-        className="hidden md:flex fixed right-4 bottom-6 z-50 items-center gap-1.5 bg-primary text-primary-foreground text-xs font-bold px-3 py-2 rounded-full shadow-lg hover:opacity-90 transition-opacity"
-        data-testid="button-lang-float"
-        title={lang === "es" ? "Switch to English" : "Cambiar a Español"}
-      >
-        <span>{lang === "es" ? "🇬🇧 EN" : "🇦🇷 ES"}</span>
-      </button>
+      {/* Floating Controls — brightness + language + theme, bottom right */}
+      <FloatingControls />
     </div>
   );
 }

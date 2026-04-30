@@ -113,6 +113,15 @@ const translations: Record<Lang, Record<string, string>> = {
     searchPlaceholder: "Search templates...",
     searchNoResults: "No templates match your search.",
 
+    navGroupTemplates: "Templates",
+    navGroupGuides: "Guides",
+    navGroupTools: "Tools",
+
+    controlsTitle: "Display Controls",
+    brightness: "Brightness",
+    brightnessHint: "Adjust screen brightness",
+    languageLabel: "Language",
+
     loginSubtitle: "Admin Panel — Bot Management",
     loginTitle: "Sign In",
     loginUsername: "Username",
@@ -265,6 +274,15 @@ const translations: Record<Lang, Record<string, string>> = {
     navStatus: "Estado del Sistema",
     searchPlaceholder: "Buscar plantillas...",
     searchNoResults: "Ninguna plantilla coincide con tu búsqueda.",
+
+    navGroupTemplates: "Plantillas",
+    navGroupGuides: "Guías",
+    navGroupTools: "Herramientas",
+
+    controlsTitle: "Controles de pantalla",
+    brightness: "Brillo",
+    brightnessHint: "Ajustá el brillo de la pantalla",
+    languageLabel: "Idioma",
 
     loginSubtitle: "Panel Administrador — Gestión de Bots",
     loginTitle: "Iniciar Sesión",
