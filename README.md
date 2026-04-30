@@ -41,18 +41,21 @@ plantillas-de-bots/
 ├── setup.bat              ← Instalación y primer arranque (Windows)
 ├── start.sh               ← Reinicio rápido sin reinstalar (Mac/Linux)
 ├── start.bat              ← Reinicio rápido sin reinstalar (Windows)
+├── test_local.py          ← Script de verificación de la instalación
 ├── .env                   ← Archivo de variables de entorno (NUNCA subir a Git)
 └── README.md
 ```
 
 ---
 
-## 🚀 Instalación (primera vez)
+## 🚀 Instalación y uso — flujo completo
 
 ### Requisitos previos
 - **Node.js 20+** y **pnpm 9+** (para el panel web)
-- **Python 3.11+** y **pip** (para los bots)
+- **Python 3.10+** y **pip** (para los bots)
 - Git
+
+---
 
 ### Paso 1 — Clonar el repositorio
 
@@ -60,6 +63,8 @@ plantillas-de-bots/
 git clone https://github.com/AlbertiJ/Plantillas-de-bots plantillas-de-bots
 cd plantillas-de-bots
 ```
+
+---
 
 ### Paso 2 — Ejecutar el setup (solo una vez)
 
@@ -74,70 +79,55 @@ chmod +x setup.sh
 setup.bat
 ```
 
-El setup instala todas las dependencias, inicia los servicios y muestra la contraseña inicial en la terminal.
+El setup:
+1. Verifica Node.js, pnpm y Python.
+2. Instala todas las dependencias (npm + pip).
+3. Inicia el servidor API (puerto 3001) y el panel web (puerto 5173).
+4. Muestra la **contraseña inicial** en la terminal.
 
-### Paso 3 — Primer login
-
-1. Abrí `http://localhost:5173` en tu navegador.
-2. La pantalla de login muestra automáticamente las credenciales iniciales.
-3. Ingresá y **cambiá la contraseña** desde el Panel Admin (`/admin`).
-4. Después del cambio se redirige automáticamente al panel de plantillas.
+> Cuando termines de verificar que todo arranca, presioná **Ctrl+C** para detener los servicios. El setup ya cumplió su función — las dependencias quedan instaladas.
 
 ---
 
+### Paso 3 — Verificar la instalación
 
-## 🧪 Verificar la instalación
-
-Si el setup falla, los bots no aparecen o algo no funciona, ejecutá el script de verificación **antes o después del setup**:
+Con los servicios detenidos (o en otra terminal), ejecutá:
 
 ```bash
 python3 test_local.py
 ```
 
 No requiere instalar nada extra — usa solo la librería estándar de Python.
-Al finalizar imprime un resumen en consola y guarda `check_report.txt` en la raíz del proyecto.
 
-### Qué verifica (7 secciones)
+Verifica **7 áreas** y al finalizar imprime un resumen + guarda `check_report.txt`:
 
 | # | Sección | Qué chequea |
 |---|---|---|
 | 1 | **Entorno** | Python ≥ 3.10, pip, Node.js ≥ 16, pnpm, git |
 | 2 | **Estructura del repo** | Carpetas, `setup.sh`, `start.sh`, `package.json` |
-| 3 | **Archivos de bots** | Los 35 archivos `.py` del catálogo (detecta los que faltan) |
-| 4 | **Paquetes Python** | Todos los de `bots/requirements.txt` — requeridos y opcionales |
-| 5 | **Archivo .env** | Si existe y si cada variable tiene un valor real (no placeholder) |
-| 6 | **Panel admin** | `node_modules` instalados y si la API está respondiendo |
-| 7 | **Conectividad** | Acceso a internet, Telegram API y OpenAI |
+| 3 | **Archivos de bots** | Los 35 archivos `.py` del catálogo |
+| 4 | **Paquetes Python** | Requeridos y opcionales de `bots/requirements.txt` |
+| 5 | **Archivo .env** | Si existe y si las variables tienen valor real |
+| 6 | **Panel admin** | `node_modules` instalados, API respondiendo |
+| 7 | **Conectividad** | Acceso a internet, Telegram API, OpenAI |
 
 Para cada error encontrado muestra el **comando exacto para resolverlo**.
 
-### Errores comunes y solución rápida
+---
 
-| Error | Solución |
-|---|---|
-| `Permission denied` al correr `setup.sh` | Ya corregido — actualizá con `git pull origin main` |
-| `No such file or directory` (archivo .py) | `git pull origin main` para descargar los bots faltantes |
-| `ModuleNotFoundError: No module named 'telegram'` | `pip install -r bots/requirements.txt` |
-| Token inválido / `Unauthorized` | Editá `.env` y completá `TELEGRAM_BOT_TOKEN` con tu token real |
-| `pnpm` no encontrado | `npm install -g pnpm` |
-| Python no encontrado | `sudo apt install python3 python3-pip` (Ubuntu/Debian) |
-| `node_modules` no instalados | `pnpm install` |
+### Paso 4 — Primer login
 
-### Cómo configurar el archivo .env
-
-Si aún no tenés el archivo `.env`:
-
-```bash
-cp .env.example .env    # copiá la plantilla incluida en el repo
-nano .env               # completá tus tokens/credenciales
-```
-
-El archivo `.env.example` incluye todas las variables documentadas con instrucciones para obtener cada credencial.
+1. Iniciá los servicios (ver Paso 5 abajo).
+2. Abrí **http://localhost:5173** en tu navegador.
+3. La pantalla de login muestra las credenciales iniciales.
+4. Ingresá y **cambiá la contraseña** desde el Panel Admin (`/admin`).
+5. Después del cambio se redirige automáticamente al panel de plantillas.
 
 ---
-## 🔁 Reiniciar sin reinstalar
 
-Después del setup inicial, para volver a iniciar los servicios usá:
+### Paso 5 — Uso diario: iniciar sin reinstalar
+
+A partir de la segunda vez, usá `start.sh` en lugar de `setup.sh`:
 
 **Linux / macOS:**
 ```bash
@@ -149,122 +139,48 @@ Después del setup inicial, para volver a iniciar los servicios usá:
 start.bat
 ```
 
-> ⚠️ `setup.sh` / `setup.bat` están pensados para la **primera instalación**. Volver a ejecutarlos no rompe nada, pero reinstala todas las dependencias innecesariamente.
+`start.sh` omite toda la instalación, mata procesos anteriores si siguen corriendo, y levanta el panel en segundos. Presioná **Ctrl+C** para detener.
 
 ---
 
-## 🤖 Ejecutar bots individualmente
+### Resumen del flujo
 
-Cada bot puede correrse de forma independiente desde la consola. Primero configurá el `.env` (ver sección de Credenciales).
-
-### Bots de Telegram
-
-```bash
-python bots/telegram/echo_bot.py
-python bots/telegram/commands_bot.py
-python bots/telegram/inline_keyboard_bot.py
-python bots/telegram/files_bot.py
-python bots/telegram/poll_bot.py
-python bots/telegram/agent_openai_basic.py
-python bots/telegram/agent_anthropic_tools.py
-python bots/telegram/agent_websearch.py
-python bots/telegram/agent_vision.py
-python bots/telegram/agent_rag_documents.py
 ```
+Primera vez:
+  git clone → cd → chmod +x setup.sh → ./setup.sh → Ctrl+C → python3 test_local.py
 
-### Bots de WhatsApp (requieren ngrok para webhooks)
+De ahí en más:
+  ./start.sh (para levantar el servidor)
+  Ctrl+C     (para detenerlo)
 
-```bash
-python bots/whatsapp/webhook_basic.py
-python bots/whatsapp/chatgpt_integration.py
-python bots/whatsapp/command_router.py
-python bots/whatsapp/media_messages.py
-python bots/whatsapp/sqlite_database.py
-python bots/whatsapp/group_multiuser.py
-python bots/whatsapp/scheduler_apscheduler.py
-python bots/whatsapp/auto_language_detect.py
-python bots/whatsapp/agent_openai_persistent.py
-python bots/whatsapp/order_tracker.py
-```
-
-### Bots CTF/OSINT (⚠️ solo entornos autorizados)
-
-```bash
-python bots/ctf-osint/tg_01_ip_geo_whois.py
-python bots/ctf-osint/tg_02_dns_recon.py
-python bots/ctf-osint/tg_03_hash_suite.py
-python bots/ctf-osint/tg_04_encoding_knife.py
-python bots/ctf-osint/tg_05_sqli_builder.py
-python bots/ctf-osint/wa_01_ip_geo.py
-python bots/ctf-osint/wa_02_headers_tech.py
-python bots/ctf-osint/wa_03_hash_suite.py
-python bots/ctf-osint/wa_04_encoding.py
-python bots/ctf-osint/wa_05_ctf_toolkit.py
-```
-
-### Watchdog 24/7
-
-```bash
-# Primero configurar en .env:
-# BOT_SCRIPT=bots/telegram/echo_bot.py
-python watchdog_bot.py
+Si algo falla:
+  python3 test_local.py → seguir las instrucciones que imprime
 ```
 
 ---
 
-## 🔐 Manejo de credenciales
+## 🔑 Seguridad del panel
 
-**REGLA DE ORO: NUNCA escribas tokens, claves o API keys directamente en el código.**
-
-### Archivo `.env`
-
-> `.env` es un **archivo de texto plano** (no una carpeta) ubicado en la **raíz del proyecto**.
-> Se llama exactamente `.env` (con punto al inicio, sin extensión visible).
-
-El archivo se crea manualmente o desde el Panel Admin. Ejemplo de cómo tiene que quedar su contenido:
-
-```
-# Archivo: .env
-# Ubicación: plantillas-de-bots/.env
-
-TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
-TELEGRAM_OWNER_ID=987654321
-
-WHATSAPP_API_KEY=EAAXXXXXXXXXXXXXXXXXX
-WHATSAPP_PHONE_NUMBER_ID=1234567890
-WHATSAPP_VERIFY_TOKEN=mi_token_secreto
-WHATSAPP_ACCESS_TOKEN=EAAXXXXXXXXXXXXXXXXXX
-
-OPENAI_API_KEY=sk-proj-XXXXXXXXXXXXXXXXXXXXXXXXXX
-ANTHROPIC_API_KEY=sk-ant-XXXXXXXXXXXXXXXXXXXXXXXXXX
-GEMINI_API_KEY=AIzaXXXXXXXXXXXXXXXXXXXXXXXXXX
-```
-
-> Los valores de ejemplo son ficticios. Reemplazalos con tus claves reales.
-> El `.env` está en `.gitignore` — **nunca se sube a Git**.
-
-La forma recomendada de configurar los tokens es desde el **Panel Admin** (`/admin > Tokens de bots`). Los valores se guardan en `data/tokens.json` y se sincronizan al `.env` automáticamente.
-
----
-
-## 🔑 Primer login — Seguridad del panel
-
-Al arrancar el servidor API por **primera vez**:
-- Se genera automáticamente un usuario `admin` con una contraseña aleatoria de 16 caracteres.
-- La contraseña aparece **en la terminal** (abajo de la dirección Network) y **en la pantalla de login del panel**.
-- El panel te redirige automáticamente a `/admin` y exige cambiar la contraseña antes de continuar.
-- Una vez cambiada, la contraseña inicial desaparece para siempre.
+Al arrancar por **primera vez**:
+- Se genera automáticamente un usuario `admin` con contraseña aleatoria de 16 caracteres.
+- La contraseña aparece **en la terminal** y en **la pantalla de login del panel**.
+- El panel exige cambiarla antes de continuar — una vez cambiada desaparece para siempre.
 
 Si olvidás la contraseña:
 ```bash
-# Borrar las credenciales y reiniciar para generar una nueva
 rm -rf data/credentials/
 ./start.sh
 ```
 
 ---
 
-## ⏰ Modo 24×7 (corriendo en local)
+## 🔧 Configurar tokens
+
+La forma recomendada es desde el **Panel Admin** (`/admin > Tokens de bots`). Los valores se guardan en `data/tokens.json` y se sincronizan al `.env` automáticamente.
+
+---
+
+## ⏰ Modo 24×7 (watchdog)
 
 ```bash
 # Configurar en .env:
@@ -279,9 +195,25 @@ python watchdog_bot.py
 
 ---
 
+## 🐛 Solución de problemas
+
+| Problema | Solución |
+|---|---|
+| **setup.sh: Permission denied** | `chmod +x setup.sh && ./setup.sh` |
+| **La API no arranca** | El setup muestra el error en pantalla. Revisá: `cat ./logs/api.log` |
+| **Puerto 5173 u 3001 ocupado** | `sudo lsof -i :5173` → `kill <PID>` |
+| **No aparece la contraseña inicial** | Mirá el final de la terminal donde corre `./start.sh` |
+| **Bot no responde** | Verificá `TELEGRAM_BOT_TOKEN` en `.env` |
+| **WhatsApp no recibe mensajes** | El webhook necesita URL pública — usá ngrok o cloudflared |
+| **Olvidé la contraseña del panel** | `rm -rf data/credentials/ && ./start.sh` |
+| **ModuleNotFoundError** | `pip install -r bots/requirements.txt` |
+| **Algo falla y no sé qué** | `python3 test_local.py` — te dice exactamente qué está roto |
+
+---
+
 ## ⚖️ Aviso legal y ético — IMPORTANTE
 
-Las plantillas de **CTF y OSINT** incluyen capacidades de análisis de IPs, DNS, codificaciones y técnicas de CTF.
+Las plantillas de **CTF y OSINT** incluyen capacidades de análisis de IPs, DNS y técnicas de CTF.
 
 **Solo para:**
 - ✅ Sistemas que vos mismo administrás.
@@ -315,20 +247,6 @@ Las plantillas de **CTF y OSINT** incluyen capacidades de análisis de IPs, DNS,
 **API local:** Express 5, Node.js 20+, Zod, bcryptjs, cookie-parser, pino
 
 **Bots:** Python 3.11+, python-telegram-bot, flask, twilio, requests, python-dotenv, openai, anthropic, dnspython, python-whois
-
----
-
-## 🐛 Solución de problemas
-
-| Problema | Solución |
-|---|---|
-| **Puerto 5173 ocupado** | Cerrá otra app o cambiá `WEB_PORT` en `start.sh`. |
-| **No aparece la contraseña inicial** | Revisá la terminal donde corre la API — también se imprime ahí. |
-| **Bot no responde** | Verificá `TELEGRAM_BOT_TOKEN` en `.env`. |
-| **WhatsApp no recibe mensajes** | El webhook necesita URL pública — usá ngrok o cloudflared. |
-| **Olvidé la contraseña del panel** | Borrá `data/credentials/` y volvé a ejecutar `./start.sh`. |
-| **Error en pip install** | Verificá que usás Python 3.11+: `python --version`. |
-| **La API no arranca** | Revisá: `cat /tmp/plantillas-api.log` |
 
 ---
 
