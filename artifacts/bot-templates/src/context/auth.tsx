@@ -12,6 +12,7 @@ export interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
+  needsPasswordChange: boolean;
   login: (username: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -23,6 +24,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
+  needsPasswordChange: false,
   login: async () => ({ ok: false, error: "no_provider" }),
   logout: async () => {},
   refresh: async () => {},
@@ -34,13 +36,16 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [needsPasswordChange, setNeedsPasswordChange] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      const data = await apiFetch<{ user: AuthUser }>("/auth/me");
+      const data = await apiFetch<{ user: AuthUser; needsPasswordChange?: boolean }>("/auth/me");
       setUser(data.user);
+      setNeedsPasswordChange(data.needsPasswordChange ?? false);
     } catch {
       setUser(null);
+      setNeedsPasswordChange(false);
     } finally {
       setLoading(false);
     }
@@ -50,11 +55,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (username: string, password: string) => {
     try {
-      const data = await apiFetch<{ ok: boolean; user: AuthUser }>("/auth/login", {
+      const data = await apiFetch<{ ok: boolean; user: AuthUser; needsPasswordChange?: boolean }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ username, password }),
       });
       setUser(data.user);
+      setNeedsPasswordChange(data.needsPasswordChange ?? false);
       return { ok: true };
     } catch (e) {
       const err = e as ApiError;
@@ -65,15 +71,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     try { await apiFetch("/auth/logout", { method: "POST" }); } catch {}
     setUser(null);
+    setNeedsPasswordChange(false);
   }, []);
 
   const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
     try {
-      const data = await apiFetch<{ ok: boolean; user: AuthUser }>("/auth/change-password", {
+      const data = await apiFetch<{ ok: boolean; user: AuthUser; needsPasswordChange?: boolean }>("/auth/change-password", {
         method: "POST",
         body: JSON.stringify({ currentPassword, newPassword }),
       });
       setUser(data.user);
+      setNeedsPasswordChange(data.needsPasswordChange ?? false);
       return { ok: true };
     } catch (e) {
       const err = e as ApiError;
@@ -100,7 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refresh, changePassword, randomPassword, setLocked }}>
+    <AuthContext.Provider value={{ user, loading, needsPasswordChange, login, logout, refresh, changePassword, randomPassword, setLocked }}>
       {children}
     </AuthContext.Provider>
   );
