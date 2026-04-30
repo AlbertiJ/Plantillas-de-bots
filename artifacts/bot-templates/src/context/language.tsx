@@ -88,6 +88,7 @@ const translations: Record<Lang, Record<string, string>> = {
     tokGemini: "Gemini API key",
 
     navLauncher: "Bot Launcher",
+    navStatus: "System Status",
     navActivity: "Activity",
     launcherTitle: "Bot Launcher",
     launcherSubtitle: "Select a bot, launch it as a Python process, and view its output in real time. Export results to CSV or HTML.",
@@ -260,6 +261,7 @@ const translations: Record<Lang, Record<string, string>> = {
     tokGemini: "API key de Gemini",
 
     navLauncher: "Lanzador de Bot",
+    navStatus: "Estado del Sistema",
     navActivity: "Actividad",
     launcherTitle: "Lanzador de Bots",
     launcherSubtitle: "Seleccioná un bot, inicialo como proceso Python y visualizá su salida en tiempo real. Exportá resultados a CSV o HTML.",
