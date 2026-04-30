@@ -51,6 +51,15 @@ export default function AdminPage() {
 
   useEffect(() => { void loadTokens(false); }, []);
 
+  // Pre-rellenar la contraseña actual cuando es el primer arranque
+  // Evita que el usuario tenga que tipear manualmente caracteres especiales
+  useEffect(() => {
+    if (!needsPasswordChange) return;
+    apiFetch<{ firstRun: boolean; password?: string }>("/auth/first-run")
+      .then((data) => { if (data.firstRun && data.password) setCurrentPwd(data.password); })
+      .catch(() => {});
+  }, [needsPasswordChange]);
+
   const onChangePwd = async (e: React.FormEvent) => {
     e.preventDefault();
     setPwdMsg(null);
