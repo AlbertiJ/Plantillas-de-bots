@@ -12,6 +12,12 @@ CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 API_PORT=3001
 WEB_PORT=5173
 
+# ── Carpeta de logs local (evita problemas de permisos en /tmp/) ──────────────
+mkdir -p logs
+LOG_API="./logs/api.log"
+LOG_WEB="./logs/web.log"
+LOG_PIDS="./logs/.pids"
+
 echo ""
 echo -e "${BOLD}╔══════════════════════════════════════════════╗${NC}"
 echo -e "${BOLD}║   🤖  Plantillas de Bots en Python           ║${NC}"
@@ -19,7 +25,7 @@ echo -e "${BOLD}║   Setup inicial — Mac / Linux                ║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 
-# ── Verificar Node.js ──────────────────────────────────────
+# ── Verificar Node.js ──────────────────────────────────────────────────────────
 if ! command -v node &>/dev/null; then
   echo -e "${RED}✗ Node.js no está instalado.${NC}"
   echo "  Descargalo desde https://nodejs.org/ (v20 o superior)"
@@ -27,14 +33,14 @@ if ! command -v node &>/dev/null; then
 fi
 echo -e "${GREEN}✓${NC} Node.js $(node --version)"
 
-# ── Verificar / instalar pnpm ─────────────────────────────
+# ── Verificar / instalar pnpm ──────────────────────────────────────────────────
 if ! command -v pnpm &>/dev/null; then
   echo "  Instalando pnpm..."
   npm install -g pnpm
 fi
 echo -e "${GREEN}✓${NC} pnpm $(pnpm --version)"
 
-# ── Verificar Python ──────────────────────────────────────
+# ── Verificar Python ───────────────────────────────────────────────────────────
 PYTHON_CMD=""
 for cmd in python3 python; do
   if command -v "$cmd" &>/dev/null; then
@@ -58,10 +64,10 @@ fi
 
 echo ""
 echo -e "${CYAN}  Iniciando servidor API en puerto ${API_PORT}...${NC}"
-PORT=$API_PORT pnpm --filter @workspace/api-server run dev > /tmp/plantillas-api.log 2>&1 &
+PORT=$API_PORT pnpm --filter @workspace/api-server run dev > "$LOG_API" 2>&1 &
 API_PID=$!
 
-# ── Esperar que la API esté lista ─────────────────────────
+# ── Esperar que la API esté lista ──────────────────────────────────────────────
 echo -n "  Esperando que la API compile y arranque"
 READY=0
 for i in $(seq 1 90); do
@@ -74,30 +80,30 @@ echo ""
 
 if [ "$READY" -eq 0 ]; then
   echo -e "${RED}✗ La API no respondió. Revisá los logs:${NC}"
-  echo "  cat /tmp/plantillas-api.log"
+  echo "  cat $LOG_API"
   kill $API_PID 2>/dev/null; exit 1
 fi
 echo -e "${GREEN}✓${NC} API lista."
 
-# ── Obtener estado del primer arranque ────────────────────
+# ── Obtener estado del primer arranque ─────────────────────────────────────────
 FIRST_RUN_JSON=$(curl -sf "http://localhost:${API_PORT}/api/auth/first-run" 2>/dev/null || echo '{"firstRun":false}')
 IS_FIRST=$(node -e "const d=JSON.parse(process.argv[1]); process.stdout.write(String(d.firstRun))" "$FIRST_RUN_JSON")
 INIT_PASS=$(node -e "const d=JSON.parse(process.argv[1]); process.stdout.write(d.password||'')" "$FIRST_RUN_JSON")
 
-# ── Iniciar panel web ─────────────────────────────────────
+# ── Iniciar panel web ──────────────────────────────────────────────────────────
 echo ""
 echo -e "${CYAN}  Iniciando panel web en puerto ${WEB_PORT}...${NC}"
 VITE_API_URL="http://localhost:${API_PORT}" PORT=$WEB_PORT \
-  pnpm --filter @workspace/bot-templates run dev > /tmp/plantillas-web.log 2>&1 &
+  pnpm --filter @workspace/bot-templates run dev > "$LOG_WEB" 2>&1 &
 WEB_PID=$!
 
-# Guardar PIDs
-echo "API_PID=$API_PID" > /tmp/plantillas-pids.txt
-echo "WEB_PID=$WEB_PID" >> /tmp/plantillas-pids.txt
+# Guardar PIDs para poder detenerlos luego
+echo "API_PID=$API_PID" > "$LOG_PIDS"
+echo "WEB_PID=$WEB_PID" >> "$LOG_PIDS"
 
 sleep 3
 
-# ── Obtener IP LAN ────────────────────────────────────────
+# ── Obtener IP LAN ─────────────────────────────────────────────────────────────
 LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 if [ -z "$LAN_IP" ]; then
   LAN_IP=$(ip route get 1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}')
@@ -130,8 +136,8 @@ echo -e "${BOLD}╠════════════════════�
 fi
 
 echo -e "${BOLD}║${NC}   Para reiniciar sin reinstalar: ${CYAN}./start.sh${NC}            ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}   Logs: /tmp/plantillas-api.log                       ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}          /tmp/plantillas-web.log                      ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}   Logs API: ${CYAN}./logs/api.log${NC}                            ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}   Logs Web: ${CYAN}./logs/web.log${NC}                            ${BOLD}║${NC}"
 echo -e "${BOLD}║${NC}   ${CYAN}Ctrl+C para detener ambos servicios${NC}                  ${BOLD}║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
