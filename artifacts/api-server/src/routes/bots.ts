@@ -11,6 +11,7 @@ import {
 } from "../lib/bot-runner";
 import { logStart, logStop, getAll, getStats } from "../lib/activity-store";
 import { getTokens, TOKEN_KEYS } from "../lib/tokens-store";
+import { getProfileById } from "../lib/bot-profiles-store";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -44,20 +45,35 @@ router.get("/bots", (_req: Request, res: Response) => {
 
 // ── POST /bots/start — inicia un proceso Python ──────────────────────────────
 router.post("/bots/start", (req: Request, res: Response) => {
-  const { botId } = req.body as { botId?: string };
+  const { botId, profileId } = req.body as { botId?: string; profileId?: string };
   if (!botId) { res.status(400).json({ error: "botId requerido" }); return; }
 
   const entry = BOT_CATALOG.find((b) => b.id === botId);
   if (!entry) { res.status(404).json({ error: "Bot no encontrado en catálogo" }); return; }
 
-  const run = startBot(entry.id, entry.file, entry.nameEs);
+  // Si se seleccionó un perfil, inyectar sus tokens como env vars al proceso
+  let extraEnv: Record<string, string> | undefined;
+  let profileName: string | undefined;
+  if (profileId) {
+    const profile = getProfileById(profileId);
+    if (profile) {
+      extraEnv = {};
+      if (profile.telegramBotToken) extraEnv["TELEGRAM_BOT_TOKEN"] = profile.telegramBotToken;
+      if (profile.telegramOwnerId)  extraEnv["TELEGRAM_OWNER_ID"]  = profile.telegramOwnerId;
+      profileName = profile.name;
+    }
+  }
+
+  const run = startBot(entry.id, entry.file, entry.nameEs, extraEnv);
 
   logStart({
-    runId:     run.id,
-    botId:     entry.id,
-    botName:   entry.nameEs,
-    category:  entry.category,
-    startedAt: run.startedAt,
+    runId:       run.id,
+    botId:       entry.id,
+    botName:     entry.nameEs,
+    category:    entry.category,
+    startedAt:   run.startedAt,
+    profileId:   profileId ?? undefined,
+    profileName: profileName,
     status:    "running",
   });
 
