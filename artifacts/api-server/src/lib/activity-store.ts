@@ -17,6 +17,8 @@ export interface ActivityEntry {
   status: "running" | "stopped" | "crashed" | "not-found";
   exitCode: number | null;
   lineCount: number;
+  profileId?: string;
+  profileName?: string;
 }
 
 function read(): ActivityEntry[] {

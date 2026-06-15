@@ -6,7 +6,7 @@ import { Link } from "wouter";
 import {
   Play, Square, Download, Terminal, ChevronRight, Loader2,
   Wifi, WifiOff, Send, FileText, AlertTriangle, Info,
-  CheckCircle2, XCircle, Settings,
+  CheckCircle2, XCircle, Settings, Star,
 } from "lucide-react";
 import { Layout } from "@/components/layout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -24,6 +24,14 @@ interface BotEntry {
 }
 
 interface BotRun { runId: string; botId: string; status: string; startedAt: string; }
+
+interface TelegramProfile {
+  id: string;
+  name: string;
+  telegramBotToken: string;
+  telegramOwnerId: string;
+  isDefault: boolean;
+}
 
 const CAT_LABELS: Record<string, { es: string; en: string; color: string }> = {
   telegram:    { es: "Telegram",   en: "Telegram",  color: "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30" },
@@ -56,6 +64,10 @@ export default function LauncherPage() {
   const [tokenStatus, setTokenStatus] = useState<Record<string, boolean>>({});
   const [tokensLoaded, setTokensLoaded] = useState(false);
 
+  // Perfiles de Telegram para el selector
+  const [profiles, setProfiles] = useState<TelegramProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<string>("");
+
   const outputRef = useRef<HTMLDivElement>(null);
   const stdinRef  = useRef<HTMLDivElement>(null);
   const esRef     = useRef<EventSource | null>(null);
@@ -64,6 +76,22 @@ export default function LauncherPage() {
   useEffect(() => {
     apiFetch<{ bots: BotEntry[] }>("/bots").then((d) => setBots(d.bots)).catch(() => {});
   }, []);
+
+  // Cargar perfiles de Telegram y preseleccionar el predeterminado
+  useEffect(() => {
+    if (selected?.category === "telegram") {
+      apiFetch<{ profiles: TelegramProfile[] }>("/bot-profiles")
+        .then((d) => {
+          setProfiles(d.profiles ?? []);
+          const def = d.profiles?.find((p) => p.isDefault);
+          if (def) setSelectedProfileId(def.id);
+        })
+        .catch(() => {});
+    } else {
+      setProfiles([]);
+      setSelectedProfileId("");
+    }
+  }, [selected?.id, selected?.category]);
 
   // Cargar estado de tokens al montar y cada vez que cambia el bot seleccionado
   const refreshTokenStatus = useCallback(() => {
@@ -123,9 +151,11 @@ export default function LauncherPage() {
     setStdinHistory([]);
     closeSSE();
     try {
+      const body: Record<string, string> = { botId: selected.id };
+      if (selectedProfileId) body.profileId = selectedProfileId;
       const data = await apiFetch<BotRun>("/bots/start", {
         method: "POST",
-        body: JSON.stringify({ botId: selected.id }),
+        body: JSON.stringify(body),
       });
       setActiveRun(data);
       connectSSE(data.runId);
@@ -388,6 +418,61 @@ table{width:100%;border-collapse:collapse}td{padding:4px 8px;border-bottom:1px s
                           : "Authorized systems only. Educational / CTF use permitted."}
                       </p>
                     </div>
+                  )}
+
+                  {/* Selector de perfil de API para bots de Telegram */}
+                  {selected.category === "telegram" && profiles.length > 0 && (
+                    <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 px-3 py-3 space-y-2">
+                      <p className="text-xs font-semibold flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                        <Star className="h-3.5 w-3.5" />
+                        {lang === "es" ? "Perfil de API a usar:" : "API Profile to use:"}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {/* Opción "Sin perfil" → usa .env global */}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProfileId("")}
+                          className={`rounded-full px-2.5 py-1 text-xs border transition-colors ${
+                            selectedProfileId === ""
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "border-border text-muted-foreground hover:border-primary/50"
+                          }`}
+                          data-testid="profile-option-none"
+                        >
+                          {lang === "es" ? "Config. global (.env)" : "Global config (.env)"}
+                        </button>
+                        {profiles.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => setSelectedProfileId(p.id)}
+                            className={`rounded-full px-2.5 py-1 text-xs border transition-colors flex items-center gap-1 ${
+                              selectedProfileId === p.id
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "border-border text-muted-foreground hover:border-primary/50"
+                            }`}
+                            data-testid={`profile-option-${p.id}`}
+                          >
+                            {p.isDefault && <Star className="h-2.5 w-2.5" />}
+                            {p.name}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">
+                        {lang === "es"
+                          ? "El perfil seleccionado sobreescribe TELEGRAM_BOT_TOKEN y TELEGRAM_OWNER_ID solo para esta sesión."
+                          : "Selected profile overrides TELEGRAM_BOT_TOKEN and TELEGRAM_OWNER_ID only for this session."}
+                      </p>
+                    </div>
+                  )}
+                  {selected.category === "telegram" && profiles.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {lang === "es"
+                        ? "No hay perfiles de API configurados. Se usará la config. global del .env."
+                        : "No API profiles configured. Global .env config will be used."}
+                      {" "}
+                      <Link href="/admin"><span className="text-primary underline underline-offset-2 cursor-pointer">{lang === "es" ? "Agregar perfil →" : "Add profile →"}</span></Link>
+                    </p>
                   )}
 
                   {/* Controles */}
