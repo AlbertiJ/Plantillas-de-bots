@@ -35,6 +35,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.auth import is_authenticated
+from app.ratelimit import rate_limit_for_launcher
 
 # ---------------------------------------------------------
 # Paths
@@ -243,6 +244,8 @@ async def run_bot_sse(bot_id: str, request: Request, args: str = ""):
         new EventSource('/api/launcher/run/mi-bot?args=--verbose')
     """
     _require_auth(request)
+    # Q3: rate limit por usuario (10/min) para evitar abuse de subprocess
+    rate_limit_for_launcher(request, max_requests=10, window_s=60)
 
     bot = _load_bot(bot_id)
     cmd = bot.get("command")

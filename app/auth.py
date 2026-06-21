@@ -27,6 +27,8 @@ from fastapi import APIRouter, Cookie, HTTPException, Request, Response
 from passlib.hash import bcrypt
 from pydantic import BaseModel
 
+from app.ratelimit import rate_limit_for_login
+
 # ---------------------------------------------------------
 # Paths
 # ---------------------------------------------------------
@@ -120,7 +122,9 @@ router = APIRouter()
 
 
 @router.post("/login")
-async def login(req: LoginRequest, response: Response):
+async def login(req: LoginRequest, request: Request, response: Response):
+    # Q2: rate limit por IP (5/min por defecto) para anti brute-force
+    rate_limit_for_login(request, max_requests=5, window_s=60)
     cred = get_credential(req.username)
     if not cred or not bcrypt.verify(req.password, cred["password_hash"]):
         raise HTTPException(status_code=401, detail="Usuario o clave incorrectos")
