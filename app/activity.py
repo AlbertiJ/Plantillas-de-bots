@@ -35,10 +35,75 @@ ACTIVITY_LOG.parent.mkdir(parents=True, exist_ok=True)
 
 MAX_LINES = 10_000  # cap de seguridad en respuestas
 
+# Q4: configuracion del logrotate automatico
+LOGROTATE_MAX_BYTES = 5 * 1024 * 1024   # 5 MB por archivo
+LOGROTATE_KEEP_FILES = 5                 # mantener activity.jsonl.1 .. .5
+LOGROTATE_CHECK_EVERY = 100              # chequear tamano cada N appends
+
 # FIX #8 (race condition): lock de proceso para serializar los append.
 # Antes, dos requests que llamaban a /append o al launcher al mismo
 # tiempo podian pisarse y dejar lineas corruptas (mezcla de bytes).
-_APPEND_LOCK = threading.Lock()
+# Usamos RLock (re-entrante) porque _rotate_now() se llama desde dentro
+# de _append() que ya tiene el lock — con Lock normal seria deadlock.
+_APPEND_LOCK = threading.RLock()
+
+# ---------------------------------------------------------
+# Q4: Logrotate automatico
+# ---------------------------------------------------------
+_ROTATE_COUNTER = 0  # cuenta appends desde la ultima rotacion
+
+
+def _maybe_rotate() -> None:
+    """
+    Si el log supera LOGROTATE_MAX_BYTES, lo rota estilo logrotate:
+      activity.jsonl     -> activity.jsonl.1
+      activity.jsonl.1   -> activity.jsonl.2
+      ...
+      activity.jsonl.(N-1) -> activity.jsonl.N (se borra el ultimo)
+    """
+    global _ROTATE_COUNTER
+    _ROTATE_COUNTER += 1
+    # No chequear en cada append, es overkill
+    if _ROTATE_COUNTER % LOGROTATE_CHECK_EVERY != 0:
+        return
+    if not ACTIVITY_LOG.exists():
+        return
+    try:
+        size = ACTIVITY_LOG.stat().st_size
+    except OSError:
+        return
+    if size < LOGROTATE_MAX_BYTES:
+        return
+    _rotate_now()
+
+
+def _rotate_now() -> dict:
+    """
+    Ejecuta la rotacion de archivos. Devuelve un dict con el resultado
+    para que pueda ser testeado y para tener audit log.
+    """
+    if not ACTIVITY_LOG.exists():
+        return {"rotated": False, "reason": "no log file"}
+    with _APPEND_LOCK:  # reusar el mismo lock para no competir con appends
+        # Borrar el mas viejo si existe
+        oldest = ACTIVITY_LOG.with_suffix(".jsonl").parent / f"activity.jsonl.{LOGROTATE_KEEP_FILES}"
+        if oldest.exists():
+            oldest.unlink()
+        # Rotar .N -> .N+1 en cascada
+        for i in range(LOGROTATE_KEEP_FILES - 1, 0, -1):
+            src = ACTIVITY_LOG.parent / f"activity.jsonl.{i}"
+            dst = ACTIVITY_LOG.parent / f"activity.jsonl.{i + 1}"
+            if src.exists():
+                src.replace(dst)
+        # El actual pasa a ser .1
+        rotated = ACTIVITY_LOG.with_suffix(".jsonl.1")
+        ACTIVITY_LOG.replace(rotated)
+    return {
+        "rotated": True,
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "new_file": str(ACTIVITY_LOG),
+    }
+
 
 # ---------------------------------------------------------
 # Helpers
@@ -75,6 +140,8 @@ def _append(entry: dict) -> None:
         with ACTIVITY_LOG.open("a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
             f.flush()
+        # Q4: logrotate automatico basado en tamano del archivo
+        _maybe_rotate()
 
 
 # ---------------------------------------------------------
@@ -177,3 +244,14 @@ async def stats(request: Request):
         "last_activity": items[-1].get("ts"),
         "last_bot": items[-1].get("bot_id"),
     }
+
+
+@router.post("/rotate")
+async def force_rotate(request: Request):
+    """
+    Q4: Fuerza una rotacion manual del log. Util cuando se quiere
+    hacer un corte limpio antes de operaciones (ej: backups).
+    """
+    _require_auth(request)
+    result = _rotate_now()
+    return result
