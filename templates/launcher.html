@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% set active = 'launcher' %}
+{% block title %}Lanzador{% endblock %}
+{% block content %}
+<section class="intro">
+    <h2>Lanzador de bots</h2>
+    <p>Ejecuta bots con <strong>streaming SSE</strong> (salida en vivo) o <strong>sync</strong> (espera el resultado). El log queda en <code>data/activity.jsonl</code>.</p>
+</section>
+
+<section>
+    <h2>Bots cargados</h2>
+    <div id="bots-list"><p class="muted">Cargando...</p></div>
+</section>
+
+<section id="runner" hidden>
+    <h2>Ejecutando: <span id="runner-name"></span></h2>
+    <div class="code-block" id="runner-output" style="height: 400px; overflow-y: auto; white-space: pre-wrap;"></div>
+    <div class="bloque-grid-sec" style="justify-content: flex-start;">
+        <button id="runner-stop" class="bright-btn">Detener</button>
+        <button id="runner-close" class="bright-btn">Cerrar</button>
+    </div>
+</section>
+
+<div id="msg" class="msg" hidden></div>
+
+<script>
+const list = document.getElementById("bots-list");
+const runner = document.getElementById("runner");
+const runnerName = document.getElementById("runner-name");
+const runnerOutput = document.getElementById("runner-output");
+const msg = document.getElementById("msg");
+let currentEventSource = null;
+
+function showMsg(text, ok = true) {
+    msg.textContent = text;
+    msg.className = "msg " + (ok ? "ok" : "err");
+    msg.hidden = false;
+    setTimeout(() => { msg.hidden = true; }, 4000);
+}
+
+function appendOutput(text) {
+    runnerOutput.textContent += text + "\n";
+    runnerOutput.scrollTop = runnerOutput.scrollHeight;
+}
+
+async function loadBots() {
+    const r = await fetch("/api/botfather/bots");
+    const body = await r.json();
+    if (body.total === 0) {
+        list.innerHTML = `<p class="muted">No hay bots en <code>data/bots/</code>. Usá el Builder o copiá un JSON a mano.</p>`;
+        return;
+    }
+    list.innerHTML = `<div class="bloque-grid">` + body.bots.map(b => `
+        <div class="bloque">
+            <h3>${b.name || b.id}</h3>
+            <p class="muted small">id: <code>${b.id}</code></p>
+            <p class="small">${(b.command || []).join(' ')}</p>
+            <div class="bloque-grid-sec" style="justify-content: flex-start;">
+                <button class="run-sse btn-medio" data-id="${b.id}">▶ Ejecutar (SSE)</button>
+                <button class="run-sync btn-medio" data-id="${b.id}">Ejecutar (sync)</button>
+            </div>
+        </div>
+    `).join("") + `</div>`;
+
+    document.querySelectorAll(".run-sse").forEach(btn => {
+        btn.addEventListener("click", () => runSSE(btn.dataset.id));
+    });
+    document.querySelectorAll(".run-sync").forEach(btn => {
+        btn.addEventListener("click", () => runSync(btn.dataset.id));
+    });
+}
+
+async function runSSE(botId) {
+    runner.hidden = false;
+    runnerName.textContent = botId;
+    runnerOutput.textContent = "";
+    if (currentEventSource) currentEventSource.close();
+
+    currentEventSource = new EventSource(`/api/launcher/run/${botId}`);
+    currentEventSource.addEventListener("start", e => {
+        const data = JSON.parse(e.data);
+        appendOutput(`[start] cmd: ${data.cmd.join(' ')}`);
+    });
+    currentEventSource.addEventListener("stdout", e => {
+        const data = JSON.parse(e.data);
+        appendOutput(data.line);
+    });
+    currentEventSource.addEventListener("stderr", e => {
+        const data = JSON.parse(e.data);
+        appendOutput(`[err] ${data.line}`);
+    });
+    currentEventSource.addEventListener("done", e => {
+        const data = JSON.parse(e.data);
+        appendOutput(`[done] exit=${data.exit_code} duration=${data.duration_s}s`);
+        currentEventSource.close();
+    });
+    currentEventSource.onerror = () => {
+        appendOutput("[connection error]");
+        currentEventSource.close();
+    };
+}
+
+async function runSync(botId) {
+    runner.hidden = false;
+    runnerName.textContent = botId + " (sync)";
+    runnerOutput.textContent = "Ejecutando...\n";
+    const r = await fetch(`/api/launcher/run/${botId}/sync`, {method: "POST"});
+    const body = await r.json();
+    if (r.ok) {
+        runnerOutput.textContent = `[exit ${body.exit_code} | ${body.duration_s}s]\n\n${body.stdout}\n${body.stderr ? '[stderr]\n' + body.stderr : ''}`;
+    } else {
+        runnerOutput.textContent = `[error] ${body.detail}`;
+    }
+}
+
+document.getElementById("runner-close").addEventListener("click", () => {
+    if (currentEventSource) currentEventSource.close();
+    runner.hidden = true;
+});
+document.getElementById("runner-stop").addEventListener("click", async () => {
+    if (!currentEventSource) return;
+    // FIX #5: el cliente debe pedirle al server que mate el subprocess.
+    // Antes solo cerraba el EventSource, el Popen quedaba corriendo.
+    const botId = currentEventSource.url.split("/").pop().split("?")[0];
+    currentEventSource.close();
+    try {
+        const r = await fetch(`/api/launcher/run/${encodeURIComponent(botId)}/stop`, {
+            method: "POST",
+        });
+        const body = await r.json().catch(() => ({}));
+        const stopped = body.stopped_runs || [];
+        appendOutput(`[stopped by user] server mato ${stopped.length} proceso(s)`);
+    } catch (e) {
+        appendOutput(`[stopped by user] (no se pudo contactar al server: ${e})`);
+    }
+});
+
+loadBots();
+</script>
+{% endblock %}

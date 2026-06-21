@@ -1,0 +1,229 @@
+/* ============================================
+   style-colors.css — Paleta + Temas dinámicos
+   ============================================
+   Port EXACTO del style-colors.css de REDTEAM-4V v4.1
+   Solo se adapta la paleta semántica de fondo para sidebar/header
+   que en redteam no existe (es header horizontal).
+
+   5 colores × 2 modos × 4 fuentes × 4 tamaños = 160 combinaciones.
+*/
+
+/* === TEMA POR DEFECTO (azul Mock D) === */
+:root {
+    /* === FONDOS === */
+    --bg-body: #f0f2f5;
+    --bg-card: #ffffff;
+    --bg-input: #ffffff;
+    --bg-soft: #f7f8fa;
+    --bg-code: #1c1e21;
+    --bg-footer: #ffffff;
+
+    /* === TEXTOS === */
+    --text-main: #1c1e21;
+    --text-muted: #65676b;
+    --text-on-accent: #ffffff;
+    --text-code: #e4e6e9;
+
+    /* === BORDES === */
+    --border-soft: #dadde1;
+    --border-accent: #f59f00;
+    --border-success: #10b981;
+
+    /* === ACENTO PRINCIPAL === */
+    --accent: #1877f2;
+    --accent-hover: #166fe5;
+    --accent-soft: #e7f3ff;
+
+    /* === COLORES SEMÁNTICOS === */
+    --color-exito: #10b981;
+    --color-fallo: #f87171;
+    --color-info: #f59f00;
+    --color-extra: #4ade80;
+
+    /* === TEMA ACTIVO (lo cambia el theme.js) === */
+    --font-base: 16px;
+    --font-family-base: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+/* === TEMA VERDE === */
+[data-tema="verde"] {
+    --accent: #15803d;
+    --accent-hover: #14532d;
+    --accent-soft: #dcfce7;
+    --border-accent: #facc15;
+}
+
+/* === TEMA ROJO === */
+[data-tema="rojo"] {
+    --accent: #dc2626;
+    --accent-hover: #b91c1c;
+    --accent-soft: #fee2e2;
+    --border-accent: #f59e0b;
+}
+
+/* === TEMA VIOLETA === */
+[data-tema="violeta"] {
+    --accent: #9333ea;
+    --accent-hover: #7e22ce;
+    --accent-soft: #f3e8ff;
+    --border-accent: #f59e0b;
+}
+
+/* === TEMA NARANJA === */
+[data-tema="naranja"] {
+    --accent: #c2410c;
+    --accent-hover: #7c2d12;
+    --accent-soft: #ffedd5;
+    --border-accent: #16a34a;
+}
+
+/* === TAMAÑO DE FUENTE === */
+[data-fontsize="chico"]   { --font-base: 14px; }
+[data-fontsize="normal"]  { --font-base: 16px; }
+[data-fontsize="grande"]  { --font-base: 18px; }
+[data-fontsize="xl"]      { --font-base: 21px; }
+
+/* === TIPOGRAFÍA === */
+[data-font="system"]  { --font-family-base: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+[data-font="mono"]    { --font-family-base: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+[data-font="serif"]   { --font-family-base: Georgia, 'Times New Roman', serif; }
+[data-font="rounded"] { --font-family-base: 'Nunito', 'Comfortaa', 'Segoe UI', sans-serif; }
+[data-font="dyslexic"]{ --font-family-base: 'OpenDyslexic', 'Comic Sans MS', 'Comic Sans', cursive; letter-spacing: 0.02em; line-height: 1.7; }
+
+/* === APLICAR VARIABLES (de esto para abajo no tocar) === */
+html { font-size: var(--font-base); }
+body {
+    margin: 0;
+    font-family: var(--font-family-base);
+    font-size: var(--font-base);
+    background: var(--bg-body);
+    color: var(--text-main);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    transition: filter 0.2s ease;
+}
+
+.bloque, .intro, .mision-box, .submisiones-box, .tips-box,
+.lecciones-box, .consola-box, .quick-cmds, .col-der,
+.data-table, .card, .modal-content {
+    background: var(--bg-card);
+    border-color: var(--border-soft);
+}
+
+.bloque h3, .intro h2, h1, h2, h3, h4 { color: var(--text-main); }
+p, li, span, td { color: var(--text-main); }
+.muted, .small, .sub-id, .bloque .hint { color: var(--text-muted); }
+
+.alerta, .tips-box { border-color: var(--border-accent); background: #fff4e5; }
+.alerta { color: var(--text-main); }
+
+code, pre { background: var(--bg-soft); color: var(--text-main); }
+.consola-output, .code-block { background: var(--bg-code); color: var(--text-code); }
+
+.lecciones-box { border-color: var(--border-success); }
+.lecciones-box h4 { color: var(--border-success); }
+.ok-text { color: var(--color-exito); font-weight: 600; }
+.warn-text { color: var(--color-info); }
+.err { color: var(--color-fallo); }
+
+/* === MODO OSCURO (Notion-dark style) === */
+[data-modo="oscuro"] {
+    --bg-body: #191919;
+    --bg-card: #252525;
+    --bg-input: #1f1f1f;
+    --bg-soft: #2f2f2f;
+    --bg-code: #0d0d0d;
+    --bg-footer: #252525;
+
+    --text-main: #e6e6e6;
+    --text-muted: #a8a8a8;
+    --text-on-accent: #ffffff;
+    --text-code: #d4d4d4;
+
+    --border-soft: #3a3a3a;
+    --border-accent: #fbbf24;
+    --border-success: #34d399;
+
+    --accent: #a78bfa;
+    --accent-hover: #8b5cf6;
+    --accent-soft: rgba(167, 139, 250, 0.12);
+
+    --color-exito: #34d399;
+    --color-fallo: #f87171;
+    --color-info: #fbbf24;
+    --color-extra: #6ee7b7;
+}
+
+/* === MODO OSCURO + TEMAS DE COLOR === */
+[data-modo="oscuro"][data-tema="azul"]    { --accent: #60a5fa; --accent-hover: #3b82f6; --accent-soft: rgba(96, 165, 250, 0.12); }
+[data-modo="oscuro"][data-tema="verde"]   { --accent: #4ade80; --accent-hover: #22c55e; --accent-soft: rgba(74, 222, 128, 0.12); }
+[data-modo="oscuro"][data-tema="rojo"]    { --accent: #f87171; --accent-hover: #ef4444; --accent-soft: rgba(248, 113, 113, 0.12); }
+[data-modo="oscuro"][data-tema="violeta"] { --accent: #a78bfa; --accent-hover: #8b5cf6; --accent-soft: rgba(167, 139, 250, 0.12); }
+[data-modo="oscuro"][data-tema="naranja"] { --accent: #fb923c; --accent-hover: #f97316; --accent-soft: rgba(251, 146, 60, 0.12); }
+
+/* === OVERRIDES PARA MODO OSCURO === */
+[data-modo="oscuro"] body,
+[data-modo="oscuro"] {
+    background: #191919 !important;
+    color: #e6e6e6;
+}
+[data-modo="oscuro"] header {
+    background: #252525 !important;
+    border-bottom-color: #3a3a3a !important;
+}
+[data-modo="oscuro"] header h1,
+[data-modo="oscuro"] header p { color: #e6e6e6 !important; }
+[data-modo="oscuro"] header nav a { color: #e6e6e6 !important; }
+[data-modo="oscuro"] header nav a:hover { background: #2f2f2f !important; }
+[data-modo="oscuro"] .bright-btn {
+    background: #2f2f2f !important;
+    color: #e6e6e6 !important;
+    border-color: #3a3a3a !important;
+}
+[data-modo="oscuro"] .intro,
+[data-modo="oscuro"] .bloque,
+[data-modo="oscuro"] main,
+[data-modo="oscuro"] section,
+[data-modo="oscuro"] article,
+[data-modo="oscuro"] .card,
+[data-modo="oscuro"] .modal-content {
+    background: #252525 !important;
+    color: #e6e6e6 !important;
+    border-color: #3a3a3a !important;
+}
+[data-modo="oscuro"] h1, [data-modo="oscuro"] h2, [data-modo="oscuro"] h3, [data-modo="oscuro"] h4 { color: #ffffff !important; }
+[data-modo="oscuro"] p, [data-modo="oscuro"] li, [data-modo="oscuro"] span { color: #ffffff; }
+[data-modo="oscuro"] p.muted,
+[data-modo="oscuro"] .muted { color: #e0e0e0 !important; }
+[data-modo="oscuro"] .card p,
+[data-modo="oscuro"] .bloque p { color: #ffffff !important; }
+[data-modo="oscuro"] .btn-medio,
+[data-modo="oscuro"] .btn-grande,
+[data-modo="oscuro"] button:not(.close-bright) {
+    background: #a78bfa !important;
+    color: #fff !important;
+}
+[data-modo="oscuro"] .btn-medio:hover { background: #8b5cf6 !important; }
+[data-modo="oscuro"] footer {
+    background: #252525 !important;
+    color: #a8a8a8 !important;
+    border-top-color: #3a3a3a !important;
+}
+[data-modo="oscuro"] .data-table th { background: var(--bg-soft); color: var(--accent); }
+[data-modo="oscuro"] .data-table tr:hover { background: var(--bg-soft); }
+[data-modo="oscuro"] input,
+[data-modo="oscuro"] textarea,
+[data-modo="oscuro"] select {
+    background: #1f1f1f !important;
+    color: #e6e6e6 !important;
+    border-color: #3a3a3a !important;
+}
+[data-modo="oscuro"] code, [data-modo="oscuro"] pre,
+[data-modo="oscuro"] .code-block {
+    background: #1f1f1f !important;
+    color: #d4d4d4 !important;
+}
+[data-modo="oscuro"] .alerta { background: rgba(251, 191, 36, 0.1) !important; color: #fbbf24 !important; border-color: #fbbf24 !important; }
+[data-modo="oscuro"] .tag { background: var(--bg-soft) !important; color: var(--text-main) !important; }
+[data-modo="oscuro"] .badge { background: var(--bg-soft) !important; color: var(--text-main) !important; }

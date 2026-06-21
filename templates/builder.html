@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% set active = 'builder' %}
+{% block title %}Bot Builder{% endblock %}
+{% block content %}
+<section class="intro">
+    <h2>Bot Builder</h2>
+    <p>CRUD de bots. Cada bot es un JSON en <code>data/bots/&lt;id&gt;.json</code>.</p>
+</section>
+
+<section>
+    <h2>Nuevo bot</h2>
+    <form id="new-bot-form">
+        <label>ID (alfanum, guion, guion bajo)
+            <input name="id" type="text" required pattern="[A-Za-z0-9_-]+" placeholder="mi-bot">
+        </label>
+        <label>Nombre
+            <input name="name" type="text" required placeholder="Mi bot">
+        </label>
+        <label>Token de Telegram
+            <input name="token" type="password" placeholder="123456:ABC-DEF...">
+        </label>
+        <label>Comando (JSON array, una sola línea)
+            <input name="command" type="text" required placeholder='["python", "scripts/mi_bot.py"]'>
+        </label>
+        <label>CWD (opcional)
+            <input name="cwd" type="text" placeholder="/ruta/al/directorio">
+        </label>
+        <button type="submit">Guardar bot</button>
+    </form>
+</section>
+
+<section>
+    <h2>Bots existentes</h2>
+    <div id="bots-list"><p class="muted">Cargando...</p></div>
+</section>
+
+<div id="msg" class="msg" hidden></div>
+
+<script>
+const form = document.getElementById("new-bot-form");
+const list = document.getElementById("bots-list");
+const msg = document.getElementById("msg");
+
+function showMsg(text, ok = true) {
+    msg.textContent = text;
+    msg.className = "msg " + (ok ? "ok" : "err");
+    msg.hidden = false;
+    setTimeout(() => { msg.hidden = true; }, 4000);
+}
+
+form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    let command;
+    try { command = JSON.parse(fd.get("command")); }
+    catch (err) { showMsg("Comando no es JSON válido: " + err.message, false); return; }
+    const body = {
+        id: fd.get("id"),
+        name: fd.get("name"),
+        token: fd.get("token") || "",
+        command: command,
+        cwd: fd.get("cwd") || null,
+    };
+    const r = await fetch("/api/builder/", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(body),
+    });
+    if (r.ok) {
+        showMsg("Bot guardado", true);
+        form.reset();
+        load();
+    } else {
+        const err = await r.json();
+        showMsg(err.detail || "Error", false);
+    }
+});
+
+async function load() {
+    const r = await fetch("/api/builder/");
+    const body = await r.json();
+    if (body.bots.length === 0) {
+        list.innerHTML = `<p class="muted">Sin bots. Usá el form de arriba para crear uno.</p>`;
+        return;
+    }
+    list.innerHTML = `<div class="bloque-grid">` + body.bots.map(b => `
+        <div class="bloque">
+            <h3>${b.name || b.id}</h3>
+            <p class="muted small">id: <code>${b.id}</code></p>
+            <p class="small">${(b.command || []).join(' ')}</p>
+            <div class="bloque-grid-sec" style="justify-content: flex-start;">
+                <button class="del btn-medio" data-id="${b.id}" style="background: var(--color-fallo);">Eliminar</button>
+            </div>
+        </div>
+    `).join("") + `</div>`;
+    document.querySelectorAll(".del").forEach(btn => {
+        btn.addEventListener("click", async () => {
+            if (!confirm(`¿Eliminar bot "${btn.dataset.id}"?`)) return;
+            const r = await fetch(`/api/builder/${btn.dataset.id}`, {method: "DELETE"});
+            showMsg(r.ok ? "Eliminado" : "Error", r.ok);
+            load();
+        });
+    });
+}
+
+load();
+</script>
+{% endblock %}

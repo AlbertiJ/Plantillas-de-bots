@@ -1,0 +1,132 @@
+{
+  "version": "1.0.0",
+  "description": "Catalogo de librerias Python utiles para CTF, pentesting y OSINT",
+  "libraries": [
+    {
+      "name": "requests",
+      "description": "HTTP para humanos. Esencial para interactuar con APIs.",
+      "install": "pip install requests",
+      "tags": ["http", "api", "esencial"]
+    },
+    {
+      "name": "httpx",
+      "description": "HTTP async. Igual a requests pero con async/await.",
+      "install": "pip install httpx",
+      "tags": ["http", "async"]
+    },
+    {
+      "name": "beautifulsoup4",
+      "description": "Parser HTML/XML. Para scraping de paginas web.",
+      "install": "pip install beautifulsoup4",
+      "tags": ["scraping", "html"]
+    },
+    {
+      "name": "selenium",
+      "description": "Automatizacion de browser real. Para scraping de JS-heavy sites.",
+      "install": "pip install selenium",
+      "tags": ["browser", "scraping", "automation"]
+    },
+    {
+      "name": "playwright",
+      "description": "Browser automation moderna. Alternativa a Selenium, mas rapida.",
+      "install": "pip install playwright && playwright install",
+      "tags": ["browser", "automation", "async"]
+    },
+    {
+      "name": "scrapy",
+      "description": "Framework completo de web scraping. Para crawlers grandes.",
+      "install": "pip install scrapy",
+      "tags": ["scraping", "framework", "crawler"]
+    },
+    {
+      "name": "shodan",
+      "description": "API de Shodan. Buscar dispositivos, puertos, CVEs en internet.",
+      "install": "pip install shodan",
+      "tags": ["shodan", "recon", "iot"]
+    },
+    {
+      "name": "censys",
+      "description": "API de Censys. Buscar hosts, certificados, IPs.",
+      "install": "pip install censys",
+      "tags": ["censys", "recon"]
+    },
+    {
+      "name": "python-nmap",
+      "description": "Wrapper de nmap para Python. Escaneo de puertos programatico.",
+      "install": "pip install python-nmap",
+      "tags": ["nmap", "scanning", "puertos"]
+    },
+    {
+      "name": "scapy",
+      "description": "Manipulacion de paquetes de red. Para ARP spoofing, sniffing, etc.",
+      "install": "pip install scapy",
+      "tags": ["redes", "paquetes", "sniffing"]
+    },
+    {
+      "name": "paramiko",
+      "description": "SSH2 client. Para conexiones SSH programaticas.",
+      "install": "pip install paramiko",
+      "tags": ["ssh", "remote"]
+    },
+    {
+      "name": "pycryptodome",
+      "description": "Criptografia: AES, RSA, hashes, etc.",
+      "install": "pip install pycryptodome",
+      "tags": ["crypto", "hashes", "cifrado"]
+    },
+    {
+      "name": "cryptography",
+      "description": "Criptografia moderna con recetas de alto nivel.",
+      "install": "pip install cryptography",
+      "tags": ["crypto", "tls", "x509"]
+    },
+    {
+      "name": "pyjwt",
+      "description": "JSON Web Tokens. Decodificar/crear tokens JWT.",
+      "install": "pip install pyjwt",
+      "tags": ["jwt", "auth", "tokens"]
+    },
+    {
+      "name": "pwntools",
+      "description": "CTF framework: exploits, shellcode, ROP, etc.",
+      "install": "pip install pwntools",
+      "tags": ["ctf", "exploit", "pwn"]
+    },
+    {
+      "name": "zsteg",
+      "description": "Detector de esteganografia en PNG y BMP.",
+      "install": "gem install zsteg (Ruby)",
+      "tags": ["stego", "forense", "png"]
+    },
+    {
+      "name": "stegoveritas",
+      "description": "Suite de esteganografia. Multiples tecnicas.",
+      "install": "pip install stegoveritas",
+      "tags": ["stego", "forense"]
+    },
+    {
+      "name": "volatility",
+      "description": "Analisis forense de memoria RAM.",
+      "install": "pip install volatility3",
+      "tags": ["forense", "memoria", "volatility"]
+    },
+    {
+      "name": "yara-python",
+      "description": "YARA desde Python. Para deteccion de malware.",
+      "install": "pip install yara-python",
+      "tags": ["yara", "malware", "forense"]
+    },
+    {
+      "name": "binwalk",
+      "description": "Analisis de firmwares y extraccion de archivos embebidos.",
+      "install": "pip install binwalk",
+      "tags": ["firmware", "forense", "binwalk"]
+    },
+    {
+      "name": "pyshark",
+      "description": "Wrapper de tshark. Analisis de capturas pcap desde Python.",
+      "install": "pip install pyshark",
+      "tags": ["redes", "pcap", "wireshark"]
+    }
+  ]
+}

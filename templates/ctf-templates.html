@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% set active = 'ctf-templates' %}
+{% block title %}CTF Templates{% endblock %}
+{% block content %}
+<section class="intro">
+    <h2>Templates CTF</h2>
+    <p>Plantillas preconfiguradas para OSINT, reconocimiento, escaneo y explotación. Filtrá por categoría o tag.</p>
+</section>
+
+<div class="filters">
+    <label>Categoría:
+        <select id="cat-filter">
+            <option value="">Todas</option>
+        </select>
+    </label>
+    <label>Buscar:
+        <input id="search-input" type="text" placeholder="sherlock, nmap, sql...">
+    </label>
+</div>
+
+<div id="templates-list">
+    <p class="muted">Cargando templates...</p>
+</div>
+
+<div id="template-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-name" hidden>
+    <div class="modal-content">
+        <h3 id="modal-name"></h3>
+        <p id="modal-desc" class="muted"></p>
+        <div id="modal-args"></div>
+        <label>Comando final
+            <textarea id="modal-cmd" readonly rows="3"></textarea>
+        </label>
+        <p id="modal-notes" class="warn-text small"></p>
+        <div class="modal-actions">
+            <button id="modal-cancel" class="bright-btn">Cancelar</button>
+            <button id="modal-render">Renderizar comando</button>
+        </div>
+    </div>
+</div>
+
+<div id="msg" class="msg" hidden></div>
+
+<script>
+const list = document.getElementById("templates-list");
+const catFilter = document.getElementById("cat-filter");
+const searchInput = document.getElementById("search-input");
+const modal = document.getElementById("template-modal");
+const modalName = document.getElementById("modal-name");
+const modalDesc = document.getElementById("modal-desc");
+const modalArgs = document.getElementById("modal-args");
+const modalCmd = document.getElementById("modal-cmd");
+const modalNotes = document.getElementById("modal-notes");
+const msg = document.getElementById("msg");
+
+let allTemplates = [];
+
+function showMsg(text, ok = true) {
+    msg.textContent = text;
+    msg.className = "msg " + (ok ? "ok" : "err");
+    msg.hidden = false;
+    setTimeout(() => { msg.hidden = true; }, 4000);
+}
+
+async function loadCategories() {
+    const r = await fetch("/api/ctf-templates/categories");
+    const body = await r.json();
+    body.categories.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = `${c.name} (${c.count})`;
+        catFilter.appendChild(opt);
+    });
+}
+
+function renderTemplates() {
+    const cat = catFilter.value;
+    const search = searchInput.value.toLowerCase();
+    const filtered = allTemplates.filter(t => {
+        if (cat && t.category !== cat) return false;
+        if (search && !t.name.toLowerCase().includes(search) && !t.description.toLowerCase().includes(search)) return false;
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        list.innerHTML = `<p class="muted">Sin resultados.</p>`;
+        return;
+    }
+
+    list.innerHTML = `<div class="bloque-grid">` + filtered.map(t => `
+        <div class="bloque">
+            <h3>${t.name}</h3>
+            <p class="muted">${t.description}</p>
+            <p><span class="badge">${t.category}</span> <span class="badge">${t.tool}</span></p>
+            <p>${(t.tags || []).map(tag => `<span class="tag">${tag}</span>`).join(" ")}</p>
+            <button class="btn-use btn-medio" data-id="${t.id}">Usar template</button>
+        </div>
+    `).join("") + `</div>`;
+
+    document.querySelectorAll(".btn-use").forEach(btn => {
+        btn.addEventListener("click", () => openTemplate(btn.dataset.id));
+    });
+}
+
+function openTemplate(id) {
+    const t = allTemplates.find(x => x.id === id);
+    if (!t) return;
+    modalName.textContent = t.name;
+    modalDesc.textContent = t.description;
+    modalNotes.textContent = t.notes || "";
+
+    modalArgs.innerHTML = (t.args || []).map(arg => `
+        <label>${arg.name}${arg.required ? ' *' : ''}
+            <input data-arg="${arg.name}" type="text" placeholder="${arg.placeholder || ''}">
+        </label>
+    `).join("");
+
+    modalCmd.value = t.command.join(" ");
+    modal.dataset.templateId = id;
+    modal.hidden = false;
+}
+
+function getArgs() {
+    const out = {};
+    modalArgs.querySelectorAll("input").forEach(inp => {
+        out[inp.dataset.arg] = inp.value;
+    });
+    return out;
+}
+
+document.getElementById("modal-render").addEventListener("click", async () => {
+    const id = modal.dataset.templateId;
+    const r = await fetch(`/api/ctf-templates/${id}/render`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(getArgs()),
+    });
+    if (r.ok) {
+        const body = await r.json();
+        modalCmd.value = body.command_str;
+        showMsg("Comando renderizado", true);
+    } else {
+        const body = await r.json();
+        showMsg(body.detail || "Error", false);
+    }
+});
+
+// FIX #14: helpers para cerrar el modal con Escape o click fuera
+function cerrarModal() {
+    modal.hidden = true;
+    modal.style.display = "none";
+}
+document.getElementById("modal-cancel").addEventListener("click", cerrarModal);
+modal.addEventListener("click", (ev) => {
+    if (ev.target === modal) cerrarModal();
+});
+document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && !modal.hidden) cerrarModal();
+});
+
+catFilter.addEventListener("change", renderTemplates);
+searchInput.addEventListener("input", renderTemplates);
+
+(async () => {
+    await loadCategories();
+    const r = await fetch("/api/ctf-templates/");
+    const body = await r.json();
+    allTemplates = body.templates;
+    renderTemplates();
+})();
+</script>
+{% endblock %}

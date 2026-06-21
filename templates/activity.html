@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% set active = 'activity' %}
+{% block title %}Historial{% endblock %}
+{% block content %}
+<section class="intro">
+    <h2>Historial de ejecuciones</h2>
+    <p>Últimas corridas de bots, leídas de <code>data/activity.jsonl</code>.</p>
+</section>
+
+<section>
+    <div class="bloque-grid-sec" style="justify-content: flex-start;">
+        <button id="refresh" class="btn-medio">Refrescar</button>
+        <button id="clear" class="bright-btn">Limpiar historial</button>
+    </div>
+    <table class="data-table" id="activity-table">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Bot</th>
+                <th>Evento</th>
+                <th>Exit</th>
+                <th>Duración</th>
+                <th>Run ID</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td colspan="6" class="muted">Cargando...</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<div id="msg" class="msg" hidden></div>
+
+<script>
+const tbody = document.getElementById("activity-table").querySelector("tbody");
+const msg = document.getElementById("msg");
+
+function showMsg(text, ok = true) {
+    msg.textContent = text;
+    msg.className = "msg " + (ok ? "ok" : "err");
+    msg.hidden = false;
+    setTimeout(() => { msg.hidden = true; }, 4000);
+}
+
+async function load() {
+    const r = await fetch("/api/activity/");
+    const body = await r.json();
+    const items = body.items || [];
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="muted">Sin actividad todavía. Lanzá un bot desde /launcher.</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = items.slice().reverse().map(i => `
+        <tr>
+            <td class="small">${(i.ts || '').replace('T', ' ').substring(0, 19)}</td>
+            <td><code>${i.bot_id || '-'}</code></td>
+            <td>${i.event === 'done' ? '<span class="ok-text">done</span>' : i.event === 'start' ? '<span class="warn-text">start</span>' : i.event || '-'}</td>
+            <td>${i.exit_code != null ? i.exit_code : '-'}</td>
+            <td>${i.duration_s != null ? i.duration_s + 's' : '-'}</td>
+            <td class="small muted">${i.run_id || '-'}</td>
+        </tr>
+    `).join("");
+}
+
+document.getElementById("refresh").addEventListener("click", load);
+document.getElementById("clear").addEventListener("click", async () => {
+    if (!confirm("¿Borrar todo el historial?")) return;
+    const r = await fetch("/api/activity/clear", {method: "POST"});
+    showMsg(r.ok ? "Historial borrado" : "Error", r.ok);
+    load();
+});
+
+load();
+</script>
+{% endblock %}

@@ -1,0 +1,72 @@
+{
+  "version": "1.0.0",
+  "description": "Bots de OSINT preconfigurados para entornos autorizados y educativos",
+  "bots": [
+    {
+      "id": "osint-username-sherlock",
+      "name": "Sherlock - Username Search",
+      "tool": "sherlock",
+      "description": "Busca un username en 400+ redes sociales",
+      "command": ["sherlock", "{username}", "--print-found"],
+      "args": [{"name": "username", "required": true, "placeholder": "juanperez"}],
+      "tags": ["username", "redes", "recon"],
+      "category": "osint",
+      "install": "pip install sherlock-project"
+    },
+    {
+      "id": "osint-email-holehe",
+      "name": "Holehe - Email Check",
+      "tool": "holehe",
+      "description": "Verifica si un email esta registrado en 120+ servicios",
+      "command": ["holehe", "{email}"],
+      "args": [{"name": "email", "required": true, "placeholder": "victima@example.com"}],
+      "tags": ["email", "recon"],
+      "category": "osint",
+      "install": "pip install holehe"
+    },
+    {
+      "id": "osint-theharvester",
+      "name": "theHarvester - Domain Recon",
+      "tool": "theHarvester",
+      "description": "Recolecta emails, subdominios, IPs y URLs de fuentes publicas",
+      "command": ["theHarvester", "-d", "{domain}", "-b", "all", "-l", "500"],
+      "args": [{"name": "domain", "required": true, "placeholder": "example.com"}],
+      "tags": ["domain", "emails", "recon"],
+      "category": "osint",
+      "install": "pip install theHarvester"
+    },
+    {
+      "id": "osint-exiftool",
+      "name": "ExifTool - Image Metadata",
+      "tool": "exiftool",
+      "description": "Extrae metadata EXIF, GPS, autor, software, fechas",
+      "command": ["exiftool", "{image}"],
+      "args": [{"name": "image", "required": true, "placeholder": "/tmp/foto.jpg"}],
+      "tags": ["metadata", "imagen", "forense"],
+      "category": "osint",
+      "install": "apt install libimage-exiftool-perl"
+    },
+    {
+      "id": "osint-dns-lookup",
+      "name": "DNS Recon",
+      "tool": "dig",
+      "description": "Consulta DNS completa: A, AAAA, MX, TXT, NS",
+      "command": ["dig", "{domain}", "ANY", "+noall", "+answer"],
+      "args": [{"name": "domain", "required": true, "placeholder": "example.com"}],
+      "tags": ["dns", "recon"],
+      "category": "osint",
+      "install": "ya viene en linux"
+    },
+    {
+      "id": "osint-whois",
+      "name": "WHOIS Lookup",
+      "tool": "whois",
+      "description": "Datos del registrante, fechas, nameservers",
+      "command": ["whois", "{domain}"],
+      "args": [{"name": "domain", "required": true, "placeholder": "example.com"}],
+      "tags": ["whois", "dominio"],
+      "category": "osint",
+      "install": "ya viene en linux"
+    }
+  ]
+}

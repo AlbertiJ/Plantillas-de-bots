@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es-AR" data-tema="azul" data-modo="claro" data-fontsize="normal" data-font="system">
+<head>
+    <meta charset="UTF-8">
+    <!-- FIX #11: viewport para mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Plantillas de bots</title>
+    <link rel="stylesheet" href="/static/style-colors.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+    <script src="/static/brightness.js"></script>
+</head>
+<body>
+    <div class="login-container">
+        <h1>Iniciar sesión</h1>
+        <p class="muted">Si es el primer arranque, mirá la consola del servidor para ver la clave temporal.</p>
+
+        <form id="login-form">
+            <label>Usuario
+                <input type="text" name="username" value="admin" required>
+            </label>
+            <label>Clave
+                <input type="password" name="password" required autofocus>
+            </label>
+            <button type="submit">Entrar</button>
+        </form>
+
+        <div id="login-error" class="err" hidden></div>
+
+        <hr>
+
+        <details>
+            <summary>¿Olvidaste la clave?</summary>
+            <p class="small">Podés resetearla. Esto borra todas las credenciales y genera una nueva.</p>
+            <button id="reset-btn" type="button">Resetear credenciales</button>
+            <div id="reset-result" class="warn-text small" hidden></div>
+        </details>
+    </div>
+
+    <script>
+        const form = document.getElementById("login-form");
+        const err = document.getElementById("login-error");
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            err.hidden = true;
+            const data = {
+                username: form.username.value,
+                password: form.password.value,
+            };
+            const resp = await fetch("/api/auth/login", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(data),
+            });
+            if (resp.ok) {
+                const body = await resp.json();
+                if (body.must_change) {
+                    window.location.href = "/change-password";
+                } else {
+                    window.location.href = "/admin";
+                }
+            } else {
+                const body = await resp.json();
+                err.textContent = body.detail || "Error de login";
+                err.hidden = false;
+            }
+        });
+
+        const resetBtn = document.getElementById("reset-btn");
+        const resetResult = document.getElementById("reset-result");
+        resetBtn.addEventListener("click", async () => {
+            if (!confirm("¿Borrar todas las credenciales y generar una nueva clave?")) return;
+            const resp = await fetch("/api/auth/reset", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({confirm: true}),
+            });
+            if (resp.ok) {
+                const body = await resp.json();
+                resetResult.innerHTML = `
+                    <p><strong>Nueva clave temporal:</strong>
+                    <code>${body.new_password}</code></p>
+                    <p>⚠️ Copiala ahora. No se vuelve a mostrar.</p>
+                `;
+                resetResult.hidden = false;
+            } else {
+                resetResult.textContent = "Error al resetear";
+                resetResult.hidden = false;
+            }
+        });
+    </script>
+</body>
+</html>
