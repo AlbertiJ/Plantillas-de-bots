@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% set active = 'admin' %}
+{% block title %}Panel admin{% endblock %}
+{% block content %}
+<section class="intro">
+    <h2>Panel de administración</h2>
+    <p>Gestión de tokens del <code>.env</code> y configuración global del sistema.</p>
+</section>
+
+<section>
+    <h2>Tokens del entorno</h2>
+    <p class="muted">Los valores sensibles se muestran enmascarados. Click en "Editar" para cambiar.</p>
+
+    <table id="tokens-table" class="data-table">
+        <thead>
+            <tr>
+                <th>Variable</th>
+                <th>Valor</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td colspan="4" class="muted">Cargando...</td></tr>
+        </tbody>
+    </table>
+
+    <div class="bloque-grid-sec" style="justify-content: flex-start;">
+        <button id="rotate-secret" class="btn-medio">Rotar SECRET_KEY</button>
+        <button id="reload-settings" class="btn-medio">Recargar .env</button>
+    </div>
+</section>
+
+<section>
+    <h2>Accesos rápidos</h2>
+    <div class="bloque-grid">
+        <a href="/launcher" class="bloque bloque-link">
+            <h3>Lanzador de bots</h3>
+            <p>Ejecuta bots con streaming SSE y sync. Log automático en activity.jsonl.</p>
+        </a>
+        <a href="/activity" class="bloque bloque-link">
+            <h3>Historial</h3>
+            <p>Tabla de todas las ejecuciones de bots con duración y exit code.</p>
+        </a>
+        <a href="/ctf-templates" class="bloque bloque-link">
+            <h3>Templates CTF</h3>
+            <p>23 plantillas preconfiguradas para OSINT, recon, scanning, exploitation.</p>
+        </a>
+        <a href="/botfather" class="bloque bloque-link">
+            <h3>BotFather</h3>
+            <p>Cambiá nombre, descripción, comandos y foto de tus bots de Telegram.</p>
+        </a>
+    </div>
+</section>
+
+<div id="edit-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="edit-key" hidden>
+    <div class="modal-content">
+        <h3>Editar <span id="edit-key"></span></h3>
+        <label>Nuevo valor
+            <input id="edit-value" type="text" autocomplete="off">
+        </label>
+        <p class="muted small">Dejar vacío para borrar la variable del .env</p>
+        <div class="modal-actions">
+            <button id="edit-cancel" class="bright-btn">Cancelar</button>
+            <button id="edit-save">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<div id="msg" class="msg" hidden></div>
+
+<script>
+const table = document.getElementById("tokens-table").querySelector("tbody");
+const modal = document.getElementById("edit-modal");
+const editKey = document.getElementById("edit-key");
+const editValue = document.getElementById("edit-value");
+const msg = document.getElementById("msg");
+
+function showMsg(text, ok = true) {
+    msg.textContent = text;
+    msg.className = "msg " + (ok ? "ok" : "err");
+    msg.hidden = false;
+    setTimeout(() => { msg.hidden = true; }, 4000);
+}
+
+async function loadTokens() {
+    const r = await fetch("/api/admin/tokens");
+    if (!r.ok) {
+        table.innerHTML = `<tr><td colspan="4" class="err">Error cargando tokens</td></tr>`;
+        return;
+    }
+    const tokens = await r.json();
+    table.innerHTML = tokens.map(t => `
+        <tr>
+            <td><code>${t.key}</code>${t.is_sensitive ? ' <span class="badge">sensible</span>' : ''}</td>
+            <td><code>${t.masked_value || '<em class="muted">(vacío)</em>'}</code></td>
+            <td>${t.is_set ? '<span class="ok-text">configurado</span>' : '<span class="warn-text">sin valor</span>'}</td>
+            <td>
+                <button class="btn-edit btn-medio" data-key="${t.key}" data-sensitive="${t.is_sensitive}">Editar</button>
+            </td>
+        </tr>
+    `).join("");
+
+    document.querySelectorAll(".btn-edit").forEach(btn => {
+        btn.addEventListener("click", () => openEdit(btn.dataset.key, btn.dataset.sensitive === "true"));
+    });
+}
+
+function openEdit(key, sensitive) {
+    editKey.textContent = key;
+    editValue.value = "";
+    editValue.type = sensitive ? "password" : "text";
+    modal.hidden = false;
+    editValue.focus();
+}
+
+// FIX #14: helpers para cerrar el modal con Escape o click fuera
+function cerrarModal() {
+    modal.hidden = true;
+    modal.style.display = "none";
+}
+document.getElementById("edit-cancel").addEventListener("click", cerrarModal);
+modal.addEventListener("click", (ev) => {
+    if (ev.target === modal) cerrarModal();
+});
+document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && !modal.hidden) cerrarModal();
+});
+document.getElementById("edit-save").addEventListener("click", async () => {
+    const key = editKey.textContent;
+    const value = editValue.value;
+    const r = await fetch("/api/admin/tokens", {
+        method: "PUT",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({updates: {[key]: value}}),
+    });
+    if (r.ok) {
+        showMsg(`${key} actualizado. Recargá settings para que tome efecto.`, true);
+        modal.hidden = true;
+        modal.style.display = "none";
+        loadTokens();
+    } else {
+        const body = await r.json();
+        showMsg(body.detail || "Error", false);
+    }
+});
+
+document.getElementById("rotate-secret").addEventListener("click", async () => {
+    if (!confirm("¿Rotar SECRET_KEY? Todas las sesiones activas quedan invalidadas.")) return;
+    const r = await fetch("/api/admin/tokens/rotate-secret", {method: "POST"});
+    showMsg(r.ok ? "SECRET_KEY rotado. Volvé a iniciar sesión." : "Error", r.ok);
+    loadTokens();
+});
+
+document.getElementById("reload-settings").addEventListener("click", async () => {
+    const r = await fetch("/api/admin/tokens/reload", {method: "POST"});
+    const body = await r.json();
+    showMsg(body.message || "Error", r.ok);
+});
+
+loadTokens();
+</script>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% set active = 'watchdog' %}
+{% block title %}Watchdog{% endblock %}
+{% block content %}
+<section class="intro">
+    <h2>Watchdog</h2>
+    <p>Monitoreo de bots corriendo. Heartbeat cada 10 segundos. Si un bot muere, se reinicia automáticamente (si está configurado).</p>
+</section>
+
+<section>
+    <h2>Bots supervisados</h2>
+    <div id="watched-list"><p class="muted">Cargando...</p></div>
+</section>
+
+<div id="msg" class="msg" hidden></div>
+
+<script>
+const list = document.getElementById("watched-list");
+const msg = document.getElementById("msg");
+
+function showMsg(text, ok = true) {
+    msg.textContent = text;
+    msg.className = "msg " + (ok ? "ok" : "err");
+    msg.hidden = false;
+    setTimeout(() => { msg.hidden = true; }, 4000);
+}
+
+async function load() {
+    const r = await fetch("/api/watchdog/");
+    const body = await r.json();
+    const items = body.watchdogs || [];
+    if (items.length === 0) {
+        list.innerHTML = `<p class="muted">No hay bots con watchdog habilitado. Editá el JSON de un bot y agregá <code>"watchdog": {"enabled": true}</code>.</p>`;
+        return;
+    }
+    list.innerHTML = `<div class="bloque-grid">` + items.map(w => `
+        <div class="bloque">
+            <h3>${w.bot_id}</h3>
+            <p>Estado: <span class="${w.alive ? 'ok-text' : 'err'}">${w.alive ? 'vivo' : 'muerto'}</span></p>
+            <p class="small">PID: ${w.pid || '-'} | Uptime: ${w.uptime_s || 0}s | Reinicios: ${w.restarts || 0}</p>
+        </div>
+    `).join("") + `</div>`;
+}
+
+setInterval(load, 5000);
+load();
+</script>
+{% endblock %}

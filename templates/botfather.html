@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% set active = 'botfather' %}
+{% block title %}BotFather{% endblock %}
+{% block content %}
+<section class="intro">
+    <h2>BotFather — Configuración visual de bots</h2>
+    <p>Cambiá el <strong>nombre, descripción, comandos y foto</strong> de tus bots de Telegram
+    sin abrir Telegram. Todo lo que BotFather puede modificar desde su chat, lo modificamos
+    acá usando la API oficial. Lo que tu bot <em>hace</em> (el script) no se toca.</p>
+    <div class="alerta">
+        <strong>Importante:</strong> BotFather es quien <em>crea</em> y <em>revoca</em> tokens.
+        Para esas operaciones seguís hablando con @BotFather en Telegram. Acá solo aplicás
+        cambios a bots que ya tenés cargados en <code>data/bots/</code>.
+    </div>
+</section>
+
+<section>
+    <h2>Tus bots cargados</h2>
+    <div id="bots-list"><p class="muted">Cargando...</p></div>
+</section>
+
+<section>
+    <h2>Plantilla para bots nuevos</h2>
+    <p class="muted">Guardá un JSON así en <code>data/bots/&lt;id&gt;.json</code> y aparecerá acá.</p>
+    <button id="load-template" class="btn-medio">Ver plantilla</button>
+    <pre id="template-display" class="code-block" hidden></pre>
+</section>
+
+<div id="bot-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-bot-name" hidden>
+    <div class="modal-content">
+        <h3 id="modal-bot-name"></h3>
+        <p id="modal-bot-token" class="muted small"></p>
+        <div class="tabs">
+            <button class="tab active" data-tab="actual">Actual en Telegram</button>
+            <button class="tab" data-tab="cambios">Aplicar cambios</button>
+        </div>
+        <div id="tab-actual" class="tab-content">
+            <p><strong>Nombre:</strong> <span id="cur-name">-</span></p>
+            <p><strong>Descripción:</strong> <span id="cur-desc">-</span></p>
+            <p><strong>Descripción corta:</strong> <span id="cur-short">-</span></p>
+            <p><strong>Comandos:</strong> <pre id="cur-commands" class="code-block">-</pre></p>
+        </div>
+        <div id="tab-cambios" class="tab-content" hidden>
+            <label>Nombre
+                <input id="in-name" type="text" maxlength="64" placeholder="Mi bot">
+            </label>
+            <label>Descripción completa (512 chars max)
+                <textarea id="in-desc" maxlength="512" rows="3" placeholder="Descripción del bot..."></textarea>
+                <span class="muted small"><span id="in-desc-len">0</span>/512</span>
+            </label>
+            <label>Descripción corta (120 chars max)
+                <textarea id="in-short" maxlength="120" rows="2" placeholder="Corta..."></textarea>
+                <span class="muted small"><span id="in-short-len">0</span>/120</span>
+            </label>
+            <label>Comandos (JSON array)
+                <textarea id="in-commands" rows="6" placeholder='[{"command":"start","description":"Inicia el bot"}]'></textarea>
+            </label>
+            <div class="modal-actions">
+                <button id="apply-name">Aplicar nombre</button>
+                <button id="apply-desc">Aplicar descripción</button>
+                <button id="apply-short">Aplicar corta</button>
+                <button id="apply-commands">Aplicar comandos</button>
+                <button id="apply-all" style="background: var(--accent);">Aplicar TODO</button>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button id="modal-close" class="bright-btn">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<div id="msg" class="msg" hidden></div>
+
+<script>
+const botsList = document.getElementById("bots-list");
+const modal = document.getElementById("bot-modal");
+const modalBotName = document.getElementById("modal-bot-name");
+const modalBotToken = document.getElementById("modal-bot-token");
+const msg = document.getElementById("msg");
+let currentBot = null;
+
+function showMsg(text, ok = true) {
+    msg.textContent = text;
+    msg.className = "msg " + (ok ? "ok" : "err");
+    msg.hidden = false;
+    setTimeout(() => { msg.hidden = true; }, 5000);
+}
+
+async function loadBots() {
+    const r = await fetch("/api/botfather/bots");
+    const body = await r.json();
+    if (body.total === 0) {
+        botsList.innerHTML = `
+            <p class="muted">No hay bots cargados. Creá un bot con @BotFather en Telegram,
+            copiá el token, y guardá un JSON en <code>data/bots/&lt;id&gt;.json</code> con esta forma:</p>
+            <pre class="code-block">{
+  "id": "mi-bot",
+  "name": "Mi bot",
+  "token": "123456:ABC-DEF...",
+  "command": ["python", "scripts/mi_bot.py"],
+  "config_visual": {
+    "name": "Mi bot",
+    "description": "...",
+    "short_description": "...",
+    "commands": [{"command":"start","description":"..."}]
+  }
+}</pre>
+        `;
+        return;
+    }
+    // FIX #13: enmascarar el token para no exponerlo visualmente.
+    // Muestra los primeros 4 y ultimos 4 chars, oculta el resto con asteriscos.
+    const tokenMask = (t) => {
+        if (!t) return "";
+        if (t.length <= 12) return t.slice(0, 4) + "..." + t.slice(-2);
+        return t.slice(0, 4) + "..." + t.slice(-4);
+    };
+    botsList.innerHTML = `<div class="bloque-grid">` + body.bots.map(b => `
+        <div class="bloque">
+            <h3>${b.name || b.id}</h3>
+            <p class="muted small">id: <code>${b.id}</code> | token: <code title="(enmascarado)">${tokenMask(b.token)}</code></p>
+            <p class="small">${(b.metadata || {}).description || ''}</p>
+            <button class="btn-edit btn-medio" data-id="${b.id}">Configurar en Telegram</button>
+        </div>
+    `).join("") + `</div>`;
+
+    document.querySelectorAll(".btn-edit").forEach(btn => {
+        btn.addEventListener("click", () => openBot(btn.dataset.id));
+    });
+}
+
+async function openBot(botId) {
+    currentBot = botId;
+    const r = await fetch(`/api/botfather/bots/${botId}/current`);
+    const body = await r.json();
+
+    modalBotName.textContent = `Bot: ${botId}`;
+    modalBotToken.textContent = `id: ${botId}`;
+
+    document.getElementById("cur-name").textContent = body.name?.name || "(vacío)";
+    document.getElementById("cur-desc").textContent = body.description?.description || "(vacío)";
+    document.getElementById("cur-short").textContent = body.short_description?.short_description || "(vacío)";
+    document.getElementById("cur-commands").textContent = JSON.stringify(body.commands, null, 2) || "(sin comandos)";
+
+    const bots = await (await fetch("/api/botfather/bots")).json();
+    const bot = bots.bots.find(b => b.id === botId);
+    if (bot && bot.config_visual) {
+        document.getElementById("in-name").value = bot.config_visual.name || "";
+        document.getElementById("in-desc").value = bot.config_visual.description || "";
+        document.getElementById("in-short").value = bot.config_visual.short_description || "";
+        document.getElementById("in-commands").value = JSON.stringify(bot.config_visual.commands || [], null, 2);
+        updateLen();
+    }
+
+    modal.hidden = false;
+    switchTab("actual");
+}
+
+function updateLen() {
+    document.getElementById("in-desc-len").textContent = document.getElementById("in-desc").value.length;
+    document.getElementById("in-short-len").textContent = document.getElementById("in-short").value.length;
+}
+
+function switchTab(tab) {
+    document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === tab));
+    document.getElementById("tab-actual").hidden = tab !== "actual";
+    document.getElementById("tab-cambios").hidden = tab !== "cambios";
+}
+
+// FIX #14: helpers para cerrar el modal con Escape o click fuera
+function cerrarModal() {
+    modal.hidden = true;
+    modal.style.display = "none";
+}
+document.getElementById("modal-close").addEventListener("click", cerrarModal);
+modal.addEventListener("click", (ev) => {
+    // Click en el backdrop (fuera del modal-content) cierra
+    if (ev.target === modal) cerrarModal();
+});
+document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && !modal.hidden) cerrarModal();
+});
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => switchTab(t.dataset.tab)));
+document.getElementById("in-desc").addEventListener("input", updateLen);
+document.getElementById("in-short").addEventListener("input", updateLen);
+
+async function callChange(endpoint, body) {
+    const r = await fetch(`/api/botfather/bots/${endpoint}`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({bot_id: currentBot, ...body}),
+    });
+    if (r.ok) {
+        showMsg(`${endpoint} aplicado`, true);
+        openBot(currentBot);
+    } else {
+        const err = await r.json();
+        showMsg(err.detail || "Error", false);
+    }
+}
+
+document.getElementById("apply-name").addEventListener("click", () => {
+    callChange("change-name", {name: document.getElementById("in-name").value});
+});
+document.getElementById("apply-desc").addEventListener("click", () => {
+    callChange("change-description", {description: document.getElementById("in-desc").value});
+});
+document.getElementById("apply-short").addEventListener("click", () => {
+    callChange("change-short-description", {description: document.getElementById("in-short").value});
+});
+document.getElementById("apply-commands").addEventListener("click", () => {
+    let cmds = [];
+    try { cmds = JSON.parse(document.getElementById("in-commands").value); }
+    catch (e) { showMsg("JSON de comandos inválido: " + e.message, false); return; }
+    callChange("change-commands", {commands: cmds});
+});
+document.getElementById("apply-all").addEventListener("click", async () => {
+    let cmds = [];
+    try { cmds = JSON.parse(document.getElementById("in-commands").value); }
+    catch (e) { showMsg("JSON de comandos inválido: " + e.message, false); return; }
+    await callChange("change-name", {name: document.getElementById("in-name").value});
+    await callChange("change-description", {description: document.getElementById("in-desc").value});
+    await callChange("change-short-description", {description: document.getElementById("in-short").value});
+    await callChange("change-commands", {commands: cmds});
+});
+
+document.getElementById("load-template").addEventListener("click", async () => {
+    const r = await fetch("/api/botfather/template");
+    const body = await r.json();
+    const display = document.getElementById("template-display");
+    display.textContent = JSON.stringify(body.template, null, 2) + "\n\n--- NOTAS ---\n" + body.notes.join("\n");
+    display.hidden = !display.hidden;
+});
+
+loadBots();
+</script>
+{% endblock %}

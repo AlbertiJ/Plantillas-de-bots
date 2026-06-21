@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% set active = 'ctf-osint' %}
+{% block title %}CTF OSINT{% endblock %}
+{% block content %}
+<section class="intro">
+    <h2>CTF OSINT</h2>
+    <p>Bots preconfigurados para reconocimiento OSINT: usernames, emails, dominios, metadatos.</p>
+</section>
+
+<section>
+    <div class="bloque-grid" id="osint-list">
+        <p class="muted">Cargando bots OSINT...</p>
+    </div>
+</section>
+
+<div id="msg" class="msg" hidden></div>
+
+<script>
+const list = document.getElementById("osint-list");
+const msg = document.getElementById("msg");
+
+function showMsg(text, ok = true) {
+    msg.textContent = text;
+    msg.className = "msg " + (ok ? "ok" : "err");
+    msg.hidden = false;
+    setTimeout(() => { msg.hidden = true; }, 4000);
+}
+
+async function load() {
+    const r = await fetch("/api/ctf-osint/");
+    const body = await r.json();
+    const bots = body.bots || [];
+    if (bots.length === 0) {
+        list.innerHTML = `<p class="muted">No hay bots OSINT en <code>data/osint_bots.json</code>. Editá el archivo para agregar.</p>`;
+        return;
+    }
+    list.innerHTML = bots.map(b => `
+        <div class="bloque">
+            <h3>${b.name}</h3>
+            <p class="muted">${b.description}</p>
+            <p><span class="badge">${b.tool}</span> ${(b.tags || []).map(t => `<span class="tag">${t}</span>`).join(" ")}</p>
+            <p class="small"><code>${(b.command || []).join(' ')}</code></p>
+            <button class="btn-medio" data-id="${b.id}">Lanzar</button>
+        </div>
+    `).join("");
+}
+
+// FIX #3: delegar el evento de click al contenedor, no a cada boton.
+// Asi no hay que re-bindear handlers despues de cada innerHTML y el boton
+// "Lanzar" de los bloques OSINT efectivamente abre el runner del bot.
+list.addEventListener("click", (ev) => {
+    const btn = ev.target.closest("button[data-id]");
+    if (!btn) return;
+    const id = btn.dataset.id;
+    // Reusamos el endpoint SSE del launcher que ya teniamos
+    window.open(`/launcher.html?bot_id=${encodeURIComponent(id)}`, "_blank");
+});
+
+load();
+</script>
+{% endblock %}

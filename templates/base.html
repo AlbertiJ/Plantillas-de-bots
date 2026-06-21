@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es-AR" data-tema="azul" data-modo="claro" data-fontsize="normal" data-font="system">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Plantillas de bots{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style-colors.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/theme.js"></script>
+    <script src="/static/brightness.js"></script>
+</head>
+<body>
+    {% if not hide_header %}
+    <header>
+        <h1>Plantillas de bots</h1>
+        <p class="sub">Entornos autorizados y educativos · Python port</p>
+        <nav>
+            <a href="/admin" class="{% if active == 'admin' %}active{% endif %}">Panel admin</a>
+            <a href="/launcher" class="{% if active == 'launcher' %}active{% endif %}">Lanzador</a>
+            <a href="/activity" class="{% if active == 'activity' %}active{% endif %}">Historial</a>
+            <a href="/builder" class="{% if active == 'builder' %}active{% endif %}">Bot Builder</a>
+            <a href="/ctf-osint" class="{% if active == 'ctf-osint' %}active{% endif %}">CTF OSINT</a>
+            <a href="/libraries" class="{% if active == 'libraries' %}active{% endif %}">Librerías</a>
+            <a href="/ctf-templates" class="{% if active == 'ctf-templates' %}active{% endif %}">CTF Templates</a>
+            <a href="/watchdog" class="{% if active == 'watchdog' %}active{% endif %}">Watchdog</a>
+            <a href="/status" class="{% if active == 'status' %}active{% endif %}">Estado</a>
+            <a href="/botfather" class="{% if active == 'botfather' %}active{% endif %}">BotFather</a>
+            <form method="post" action="/api/auth/logout" style="display:inline; margin:0;">
+                <button type="submit" class="logout-btn bright-btn">Cerrar sesión</button>
+            </form>
+        </nav>
+    </header>
+    {% endif %}
+
+    <main class="home">
+        {% block content %}{% endblock %}
+    </main>
+
+    {% if not hide_header %}
+    <footer>
+        Plantillas de bots · v1.0.0 · Modo local sin telemetría
+    </footer>
+    {% endif %}
+</body>
+</html>

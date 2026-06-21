@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% set active = 'status' %}
+{% block title %}Estado del sistema{% endblock %}
+{% block content %}
+<section class="intro">
+    <h2>Estado del sistema</h2>
+    <p>Métricas en vivo: CPU, RAM, bots corriendo, último evento.</p>
+</section>
+
+<section>
+    <div class="bloque-grid" id="status-grid">
+        <div class="bloque"><h3>CPU</h3><p id="cpu">-</p></div>
+        <div class="bloque"><h3>RAM</h3><p id="ram">-</p></div>
+        <div class="bloque"><h3>Bots corriendo</h3><p id="running">-</p></div>
+        <div class="bloque"><h3>Última actividad</h3><p id="last">-</p></div>
+    </div>
+</section>
+
+<script>
+async function load() {
+    const r = await fetch("/api/status/");
+    const body = await r.json();
+    document.getElementById("cpu").textContent = body.cpu != null ? body.cpu + '%' : 'N/A';
+    document.getElementById("ram").textContent = body.ram != null ? body.ram + '%' : 'N/A';
+    document.getElementById("running").textContent = body.bots_running ?? 0;
+    document.getElementById("last").textContent = body.last_activity || '-';
+}
+
+setInterval(load, 3000);
+load();
+</script>
+{% endblock %}

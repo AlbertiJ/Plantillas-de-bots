@@ -1,0 +1,322 @@
+{
+  "version": "1.0.0",
+  "description": "Templates CTF preconfigurados para OSINT, reconocimiento, escaneo y explotación. Cada template define el comando, descripción, tags y ejemplos de uso.",
+  "templates": [
+    {
+      "id": "sherlock-username",
+      "name": "Sherlock - Buscar username",
+      "category": "osint",
+      "tool": "sherlock",
+      "description": "Busca un nombre de usuario en 400+ redes sociales y sitios web usando sherlock-project.",
+      "command": ["sherlock", "{username}", "--print-found"],
+      "args": [
+        {"name": "username", "required": true, "placeholder": "juanperez", "description": "Nombre de usuario a buscar"}
+      ],
+      "tags": ["osint", "username", "redes", "recon"],
+      "example_output": "[+] juanperez: GitHub, Twitter, Reddit, Instagram",
+      "notes": "Requiere: pip install sherlock-project"
+    },
+    {
+      "id": "sherlock-email",
+      "name": "Sherlock + Holehe (email)",
+      "category": "osint",
+      "tool": "holehe",
+      "description": "Verifica si un email está registrado en 120+ servicios.",
+      "command": ["holehe", "{email}"],
+      "args": [
+        {"name": "email", "required": true, "placeholder": "victima@example.com", "description": "Email a investigar"}
+      ],
+      "tags": ["osint", "email", "recon"],
+      "notes": "Requiere: pip install holehe"
+    },
+    {
+      "id": "subfinder-passive",
+      "name": "Subfinder - Subdominios pasivos",
+      "category": "recon",
+      "tool": "subfinder",
+      "description": "Enumera subdominios usando fuentes pasivas (Certificate Transparency, DNS, etc).",
+      "command": ["subfinder", "-d", "{domain}", "-all", "-o", "subs.txt"],
+      "args": [
+        {"name": "domain", "required": true, "placeholder": "example.com", "description": "Dominio objetivo"}
+      ],
+      "tags": ["recon", "subdominios", "pasivo"],
+      "notes": "Requiere Go: go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest"
+    },
+    {
+      "id": "amass-passive",
+      "name": "Amass - Recon pasivo",
+      "category": "recon",
+      "tool": "amass",
+      "description": "Enumeración pasiva de subdominios y mapeo de superficie de ataque.",
+      "command": ["amass", "enum", "-passive", "-d", "{domain}"],
+      "args": [
+        {"name": "domain", "required": true, "placeholder": "example.com", "description": "Dominio objetivo"}
+      ],
+      "tags": ["recon", "subdominios", "amass"],
+      "notes": "Requiere: https://github.com/owasp-amass/amass"
+    },
+    {
+      "id": "nuclei-templates",
+      "name": "Nuclei - Escaneo de vulnerabilidades",
+      "category": "scanning",
+      "tool": "nuclei",
+      "description": "Escanea con templates de nuclei (CVEs, misconfigs, exposures, etc).",
+      "command": ["nuclei", "-u", "{url}", "-t", "cves/", "-t", "exposures/", "-severity", "medium,high,critical"],
+      "args": [
+        {"name": "url", "required": true, "placeholder": "https://example.com", "description": "URL objetivo"}
+      ],
+      "tags": ["scanning", "vulnerabilidades", "cve", "nuclei"],
+      "notes": "Requiere: go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest"
+    },
+    {
+      "id": "nmap-quick",
+      "name": "Nmap - Escaneo rápido",
+      "category": "scanning",
+      "tool": "nmap",
+      "description": "Escaneo rápido de puertos top 100 con detección de versiones.",
+      "command": ["nmap", "-sV", "-T4", "--top-ports", "100", "{target}"],
+      "args": [
+        {"name": "target", "required": true, "placeholder": "192.168.1.1", "description": "IP o hostname"}
+      ],
+      "tags": ["scanning", "puertos", "nmap"],
+      "notes": "Solo en redes autorizadas."
+    },
+    {
+      "id": "nmap-full",
+      "name": "Nmap - Escaneo completo",
+      "category": "scanning",
+      "tool": "nmap",
+      "description": "Escaneo completo de puertos con scripts NSE y detección de OS.",
+      "command": ["nmap", "-sS", "-sV", "-sC", "-A", "-O", "-p-", "{target}"],
+      "args": [
+        {"name": "target", "required": true, "placeholder": "192.168.1.1", "description": "IP o hostname"}
+      ],
+      "tags": ["scanning", "puertos", "nmap", "completo"],
+      "notes": "Tarda varios minutos. Solo en redes autorizadas."
+    },
+    {
+      "id": "nikto-web",
+      "name": "Nikto - Web scanner",
+      "category": "scanning",
+      "tool": "nikto",
+      "description": "Escáner de vulnerabilidades web (server misconfig, XSS, etc).",
+      "command": ["nikto", "-h", "{url}"],
+      "args": [
+        {"name": "url", "required": true, "placeholder": "https://example.com", "description": "URL objetivo"}
+      ],
+      "tags": ["scanning", "web", "nikto"],
+      "notes": "Hace mucho ruido. Solo en objetivos autorizados."
+    },
+    {
+      "id": "gobuster-dns",
+      "name": "Gobuster - DNS",
+      "category": "recon",
+      "tool": "gobuster",
+      "description": "Brute force de subdominios con wordlist.",
+      "command": ["gobuster", "dns", "-d", "{domain}", "-w", "/usr/share/wordlists/subdomains.txt"],
+      "args": [
+        {"name": "domain", "required": true, "placeholder": "example.com", "description": "Dominio"}
+      ],
+      "tags": ["recon", "subdominios", "bruteforce"],
+      "notes": "Requiere SecLists: apt install seclists"
+    },
+    {
+      "id": "gobuster-dir",
+      "name": "Gobuster - Directorios",
+      "category": "recon",
+      "tool": "gobuster",
+      "description": "Brute force de directorios y archivos ocultos.",
+      "command": ["gobuster", "dir", "-u", "{url}", "-w", "/usr/share/wordlists/dirb/common.txt", "-x", "php,html,txt,bak"],
+      "args": [
+        {"name": "url", "required": true, "placeholder": "https://example.com", "description": "URL base"}
+      ],
+      "tags": ["recon", "directorios", "fuzzing"],
+      "notes": "Requiere SecLists."
+    },
+    {
+      "id": "ffuf-fuzz",
+      "name": "ffuf - Fuzzing de parámetros",
+      "category": "fuzzing",
+      "tool": "ffuf",
+      "description": "Fuzzer rápido para descubrir parámetros, archivos y vhosts.",
+      "command": ["ffuf", "-u", "{url}/FUZZ", "-w", "/usr/share/wordlists/dirb/common.txt", "-mc", "200,301,302,403"],
+      "args": [
+        {"name": "url", "required": true, "placeholder": "https://example.com", "description": "URL base con FUZZ donde quieras fuzzear"}
+      ],
+      "tags": ["fuzzing", "web", "ffuf"],
+      "notes": "Modos disponibles: directory, subdomains, vhost, parameters."
+    },
+    {
+      "id": "sqlmap-basic",
+      "name": "SQLMap - Test básico",
+      "category": "exploitation",
+      "tool": "sqlmap",
+      "description": "Detección automática de SQL injection en una URL con parámetros.",
+      "command": ["sqlmap", "-u", "{url}", "--batch", "--level=3", "--risk=2"],
+      "args": [
+        {"name": "url", "required": true, "placeholder": "https://example.com/page?id=1", "description": "URL con parámetro a testear"}
+      ],
+      "tags": ["exploitation", "sqli", "sqlmap"],
+      "notes": "Solo en objetivos autorizados. Requiere: apt install sqlmap"
+    },
+    {
+      "id": "hydra-ssh",
+      "name": "Hydra - SSH brute force",
+      "category": "exploitation",
+      "tool": "hydra",
+      "description": "Brute force de credenciales SSH (para CTFs y labs).",
+      "command": ["hydra", "-L", "{users_file}", "-P", "{passwords_file}", "{target}", "ssh"],
+      "args": [
+        {"name": "users_file", "required": true, "placeholder": "/tmp/users.txt", "description": "Archivo con usernames"},
+        {"name": "passwords_file", "required": true, "placeholder": "/usr/share/wordlists/rockyou.txt", "description": "Wordlist de passwords"},
+        {"name": "target", "required": true, "placeholder": "192.168.1.1", "description": "IP objetivo"}
+      ],
+      "tags": ["exploitation", "bruteforce", "ssh", "hydra"],
+      "notes": "Solo en CTFs y labs propios. Ilegal en sistemas ajenos sin autorización."
+    },
+    {
+      "id": "john-crack",
+      "name": "John the Ripper - Crackear hashes",
+      "category": "crypto",
+      "tool": "john",
+      "description": "Crackear hashes con john y wordlist.",
+      "command": ["john", "--wordlist={wordlist}", "{hashfile}"],
+      "args": [
+        {"name": "wordlist", "required": true, "placeholder": "/usr/share/wordlists/rockyou.txt", "description": "Wordlist"},
+        {"name": "hashfile", "required": true, "placeholder": "/tmp/hashes.txt", "description": "Archivo con hashes"}
+      ],
+      "tags": ["crypto", "hashes", "john"],
+      "notes": "Formato autodetectado. Forzar con --format=NT,etc."
+    },
+    {
+      "id": "hashcat-crack",
+      "name": "Hashcat - Crackear hashes GPU",
+      "category": "crypto",
+      "tool": "hashcat",
+      "description": "Crackear hashes con hashcat (GPU, más rápido que john).",
+      "command": ["hashcat", "-m", "{mode}", "-a", "0", "{hashfile}", "{wordlist}"],
+      "args": [
+        {"name": "mode", "required": true, "placeholder": "0", "description": "Modo hashcat (0=MD5, 1000=NTLM, 1800=bcrypt, etc)"},
+        {"name": "hashfile", "required": true, "placeholder": "/tmp/hashes.txt", "description": "Archivo con hashes"},
+        {"name": "wordlist", "required": true, "placeholder": "/usr/share/wordlists/rockyou.txt", "description": "Wordlist"}
+      ],
+      "tags": ["crypto", "hashes", "hashcat", "gpu"],
+      "notes": "Lista completa de modos: hashcat --help | grep -i 'hash modes'"
+    },
+    {
+      "id": "exiftool-image",
+      "name": "ExifTool - Metadata de imagen",
+      "category": "osint",
+      "tool": "exiftool",
+      "description": "Extrae metadata EXIF, GPS, autor, software, fechas.",
+      "command": ["exiftool", "{image}"],
+      "args": [
+        {"name": "image", "required": true, "placeholder": "/tmp/foto.jpg", "description": "Ruta a la imagen"}
+      ],
+      "tags": ["osint", "metadata", "imagen", "exif"],
+      "notes": "Requiere: apt install libimage-exiftool-perl"
+    },
+    {
+      "id": "theharvester-domain",
+      "name": "theHarvester - Email/subdominios",
+      "category": "osint",
+      "tool": "theHarvester",
+      "description": "Recolecta emails, subdominios, IPs y URLs de fuentes públicas.",
+      "command": ["theHarvester", "-d", "{domain}", "-b", "all", "-l", "500"],
+      "args": [
+        {"name": "domain", "required": true, "placeholder": "example.com", "description": "Dominio"}
+      ],
+      "tags": ["osint", "emails", "recon", "theharvester"],
+      "notes": "Requiere: pip install theHarvester"
+    },
+    {
+      "id": "wpscan-basic",
+      "name": "WPScan - WordPress",
+      "category": "scanning",
+      "tool": "wpscan",
+      "description": "Escáner de seguridad para sitios WordPress.",
+      "command": ["wpscan", "--url", "{url}", "--enumerate", "u,p,t", "--api-token", "{api_token}"],
+      "args": [
+        {"name": "url", "required": true, "placeholder": "https://example.com", "description": "URL WordPress"},
+        {"name": "api_token", "required": false, "placeholder": "abc123...", "description": "Token de wpvulndb.com (gratis)"}
+      ],
+      "tags": ["scanning", "wordpress", "cms"],
+      "notes": "Solo en sitios autorizados. Registrarse en wpvulndb.com para API token."
+    },
+    {
+      "id": "curl-headers",
+      "name": "curl - Headers HTTP",
+      "category": "recon",
+      "tool": "curl",
+      "description": "Inspeccionar headers HTTP de una URL (útil para fingerprinting).",
+      "command": ["curl", "-I", "-v", "{url}"],
+      "args": [
+        {"name": "url", "required": true, "placeholder": "https://example.com", "description": "URL"}
+      ],
+      "tags": ["recon", "web", "headers"],
+      "notes": "Reveal Server, X-Powered-By, cookies, CSP, HSTS, etc."
+    },
+    {
+      "id": "dig-dns",
+      "name": "dig - DNS lookup",
+      "category": "recon",
+      "tool": "dig",
+      "description": "Consulta DNS completa: A, AAAA, MX, TXT, NS, SOA.",
+      "command": ["dig", "{domain}", "ANY", "+noall", "+answer"],
+      "args": [
+        {"name": "domain", "required": true, "placeholder": "example.com", "description": "Dominio"}
+      ],
+      "tags": ["recon", "dns", "dig"],
+      "notes": "Reemplazar ANY por A, MX, TXT, NS, etc. para queries específicos."
+    },
+    {
+      "id": "whois-domain",
+      "name": "whois - Información de dominio",
+      "category": "recon",
+      "tool": "whois",
+      "description": "Datos del registrante, fechas, nameservers, contactos.",
+      "command": ["whois", "{domain}"],
+      "args": [
+        {"name": "domain", "required": true, "placeholder": "example.com", "description": "Dominio"}
+      ],
+      "tags": ["recon", "whois", "dominio"],
+      "notes": "Cuidado: GDPR oculta datos de registrantes en muchos TLDs."
+    },
+    {
+      "id": "steghide-extract",
+      "name": "Steghide - Extraer datos",
+      "category": "stego",
+      "tool": "steghide",
+      "description": "Extrae datos ocultos en imágenes JPG/BMP.",
+      "command": ["steghide", "extract", "-sf", "{image}", "-p", "{password}", "-xf", "out.txt"],
+      "args": [
+        {"name": "image", "required": true, "placeholder": "/tmp/imagen.jpg", "description": "Imagen con stego"},
+        {"name": "password", "required": false, "placeholder": "", "description": "Password (vacío = sin password)"}
+      ],
+      "tags": ["stego", "esteganografia", "imagen"],
+      "notes": "Requiere: apt install steghide. Solo JPG y BMP."
+    },
+    {
+      "id": "binwalk-extract",
+      "name": "Binwalk - Extraer archivos embebidos",
+      "category": "stego",
+      "tool": "binwalk",
+      "description": "Encuentra y extrae archivos ocultos dentro de otros archivos.",
+      "command": ["binwalk", "-e", "{file}"],
+      "args": [
+        {"name": "file", "required": true, "placeholder": "/tmp/sospechoso.bin", "description": "Archivo a analizar"}
+      ],
+      "tags": ["stego", "forense", "binwalk"],
+      "notes": "Requiere: apt install binwalk"
+    }
+  ],
+  "categories": [
+    {"id": "osint", "name": "OSINT", "icon": "🔍"},
+    {"id": "recon", "name": "Reconocimiento", "icon": "🗺️"},
+    {"id": "scanning", "name": "Escaneo", "icon": "📡"},
+    {"id": "fuzzing", "name": "Fuzzing", "icon": "💥"},
+    {"id": "exploitation", "name": "Explotación", "icon": "💣"},
+    {"id": "crypto", "name": "Criptografía", "icon": "🔐"},
+    {"id": "stego", "name": "Esteganografía", "icon": "🖼️"}
+  ]
+}

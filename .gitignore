@@ -1,0 +1,32 @@
+# Plantillas de bots
+plantillas-de-bots-v1.zip
+*.pyc
+*.pyo
+
+# venv
+.venv/
+venv/
+env/
+
+# Python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# secrets / runtime data
+data/credentials/
+data/bots/
+data/activity.jsonl
+.env
+.env.local
+
+# mantener configs publicos en data/
+!data/ctf_templates.json
+!data/libraries.json
+!data/osint_bots.json
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini

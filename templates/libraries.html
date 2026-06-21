@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% set active = 'libraries' %}
+{% block title %}Librerías{% endblock %}
+{% block content %}
+<section class="intro">
+    <h2>Librerías Python para CTF</h2>
+    <p>Catálogo de librerías útiles para pentesting, OSINT y análisis forense.</p>
+</section>
+
+<section>
+    <table class="data-table" id="lib-table">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Descripción</th>
+                <th>Instalación</th>
+                <th>Tags</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td colspan="4" class="muted">Cargando...</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<div id="msg" class="msg" hidden></div>
+
+<script>
+const tbody = document.getElementById("lib-table").querySelector("tbody");
+const msg = document.getElementById("msg");
+
+function showMsg(text, ok = true) {
+    msg.textContent = text;
+    msg.className = "msg " + (ok ? "ok" : "err");
+    msg.hidden = false;
+    setTimeout(() => { msg.hidden = true; }, 4000);
+}
+
+async function load() {
+    const r = await fetch("/api/libraries/");
+    const body = await r.json();
+    const libs = body.libraries || [];
+    if (libs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="muted">No hay librerías en <code>data/libraries.json</code>. Editá el archivo para agregar.</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = libs.map(l => `
+        <tr>
+            <td><code>${l.name}</code></td>
+            <td>${l.description}</td>
+            <td class="small"><code>${l.install || ''}</code></td>
+            <td>${(l.tags || []).map(t => `<span class="tag">${t}</span>`).join(" ")}</td>
+        </tr>
+    `).join("");
+}
+
+load();
+</script>
+{% endblock %}
