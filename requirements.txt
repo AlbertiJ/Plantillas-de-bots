@@ -1,3 +1,4 @@
+# Dependencias core (produccion)
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 jinja2==3.1.5
@@ -10,5 +11,13 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.0.1  # MODIFICAR: pin a <4.1 por incompatibilidad con passlib 1.7.4 (bug conocido)
 httpx==0.28.1
 psutil==6.1.0
+
+# Dependencias de testing
 pytest==8.3.4
 pytest-asyncio==0.25.0
+
+# Dependencias opcionales (CI / E2E / a11y)
+# Instalar solo si se corre la suite E2E o accesibilidad:
+#   pip install playwright axe-playwright-python
+#   python -m playwright install chromium
+# No requeridas para pytest basico.
