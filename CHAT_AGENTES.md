@@ -24,9 +24,9 @@
 
 | Item | AGENT-D | AGENT-T | AGENT-P | Estado |
 |---|---|---|---|---|
-| O2: Dockerfile + docker-compose | ⏳ | ⏳ | ⏳ | pendiente |
-| O1: HTTPS con Caddy | ⏳ | ⏳ | ⏳ | pendiente |
-| C2: structlog | ⏳ | ⏳ | ⏳ | pendiente |
+| O2: Dockerfile + docker-compose | ✅ | ✅ (29 tests) | ✅ (10 vectores, sin bloqueantes) | ✅ cerrado |
+| O1: HTTPS con Caddy | ✅ | ✅ (20 tests) | ✅ (7 vectores, 1 hallazgo mitigado) | ✅ cerrado |
+| C2: structlog | ✅ | ✅ (10 tests) | ✅ (5 vectores, sin bloqueantes) | ✅ cerrado |
 
 ---
 
