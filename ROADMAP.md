@@ -37,15 +37,15 @@
 | # | Item | Estado | Esfuerzo |
 |---|---|---|---|
 | C1 | Pre-commit hooks (black + ruff) | ✅ hecho | 30 min |
-| C2 | Logging estructurado con structlog | ⏳ pendiente | 2-3 h |
+| C2 | Logging estructurado con structlog | ✅ hecho | 2-3 h |
 | C3 | Type hints completos en routers | ⏳ pendiente | 4 h |
 
 ## 🟠 Operacional (producción)
 
 | # | Item | Estado | Esfuerzo |
 |---|---|---|---|
-| O1 | HTTPS con Caddy (config) | ⏳ pendiente | 1-2 h |
-| O2 | Dockerfile + docker-compose | ⏳ pendiente | 1-2 h |
+| O1 | HTTPS con Caddy (Docker + bare-metal) | ✅ hecho | 1-2 h |
+| O2 | Dockerfile + docker-compose | ✅ hecho | 1-2 h |
 
 ## ❌ No incluido en este pase
 
