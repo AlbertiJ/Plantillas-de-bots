@@ -1,0 +1,39 @@
+# Caddyfile para instalación bare-metal (sin Docker)
+# El backend apunta a 127.0.0.1:8000 (la app corre local)
+# Reemplazar "yourdomain.com" con tu dominio real antes de usar.
+
+# === HTTP: redirect a HTTPS ===
+http://yourdomain.com {
+    redir https://{host}{uri} permanent
+}
+
+# === HTTPS: reverse proxy a la app local ===
+https://yourdomain.com {
+    reverse_proxy 127.0.0.1:8000 {
+        # Health check contra la app local
+        health_uri /api/status/health
+        health_interval 30s
+        health_timeout 5s
+
+        # Preservar IP del cliente
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # === Headers de seguridad OWASP ===
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    header X-Content-Type-Options "nosniff"
+    header X-Frame-Options "DENY"
+    header Referrer-Policy "strict-origin-when-cross-origin"
+    header Permissions-Policy "geolocation=(), microphone=(), camera=()"
+
+    # === Rate limit (defensa adicional al de la app) ===
+    @rate_limited {
+        not path /api/status/health
+    }
+    rate_limit @rate_limited {remote.ip} 100r/m
+
+    encode zstd gzip
+}

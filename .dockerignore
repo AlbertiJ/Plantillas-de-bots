@@ -1,0 +1,78 @@
+# Docker build context: excluir todo lo que no necesita la imagen
+# Documentacion: https://docs.docker.com/engine/reference/builder/#dockerignore-file
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+
+# Documentacion
+*.md
+docs/
+
+# Editor
+.vscode
+.idea
+*.swp
+*.swo
+
+# Virtual environments (se re-instalan en el build stage)
+.venv/
+venv/
+env/
+
+# Tests (no se ejecutan en produccion)
+tests/
+pytest.ini
+conftest.py
+htmlcov/
+.pytest_cache/
+.tox/
+.coverage
+.coverage.*
+
+# Type checking / linters (solo dev)
+.mypy_cache/
+.ruff_cache/
+
+# Datos locales (los volumenes se montan en runtime)
+data/credentials/*
+data/bots/*
+data/activity.jsonl
+data/*.tmp
+data/*.bak
+
+# Secrets / env
+.env
+.env.local
+*.pem
+*.key
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Documentacion de cambios
+HISTORIAL.md
+RELEASE.md
+ROADMAP.md
+CHAT_AGENTES.md
+
+# Distribuible (se regenera con build_zip.py)
+plantillas-de-bots-v1.zip
+build_zip.py
+
+# Scripts de Windows (.bat no funcionan en Linux)
+*.bat

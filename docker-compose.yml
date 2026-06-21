@@ -1,0 +1,79 @@
+# docker-compose para plantillas-de-bots-v1
+# Uso:
+#   docker compose up -d      (arrancar)
+#   docker compose logs -f    (ver logs)
+#   docker compose down       (parar)
+#   docker compose pull       (actualizar imagen)
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: plantillas-de-bots:1.0.1
+    container_name: pdb-app
+    restart: unless-stopped
+    # El puerto interno es 8000; caddy lo expone a 80/443
+    expose:
+      - "8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENV=production
+    volumes:
+      # Persistir credenciales, bots y activity entre reinicios
+      - pdb-data:/app/data
+      # Permitir override del .env desde el host
+      - ./.env:/app/.env:ro
+    # Sin network_mode: el servicio caddy accede a "app:8000" por la red interna
+    networks:
+      - pdb-net
+    depends_on:
+      caddy:
+        condition: service_started
+    # Limites de recursos (ajustar segun uso real)
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
+    # Healthcheck
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://127.0.0.1:8000/api/status/health', timeout=3).status==200 else sys.exit(1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: pdb-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - pdb-net
+    depends_on:
+      app:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+networks:
+  pdb-net:
+    driver: bridge
+
+volumes:
+  pdb-data:
+  caddy-data:
+  caddy-config:

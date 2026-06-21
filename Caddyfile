@@ -1,0 +1,61 @@
+# Caddyfile para plantillas-de-bots-v1
+#
+# Reemplazar "yourdomain.com" con tu dominio real antes de usar.
+# Caddy obtiene y renueva certs de Let's Encrypt automaticamente.
+#
+# HTTP -> HTTPS redirect automatico
+# HTTPS reverse proxy a la app
+# Headers de seguridad (HSTS, X-Frame-Options, etc.)
+
+# === HTTP: redirect a HTTPS ===
+http://yourdomain.com {
+    redir https://{host}{uri} permanent
+}
+
+# === HTTPS: reverse proxy a la app ===
+https://yourdomain.com {
+    # Reverse proxy a la app
+    reverse_proxy app:8000 {
+        # Health check: caddy pinguea este endpoint
+        health_uri /api/status/health
+        health_interval 30s
+        health_timeout 5s
+
+        # Transparent (preserva Host header, IP, etc.)
+        header_up Host {host}
+        header_up X-Real-IP {remote}
+        header_up X-Forwarded-For {remote}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # === Headers de seguridad (complementan los que ya pone FastAPI) ===
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    header X-Content-Type-Options "nosniff"
+    header X-Frame-Options "DENY"
+    header Referrer-Policy "strict-origin-when-cross-origin"
+    header Permissions-Policy "geolocation=(), microphone=(), camera=()"
+
+    # === Logging ===
+    log {
+        output file /data/caddy-access.log {
+            roll_size 50mb
+            roll_keep 5
+        }
+        level INFO
+    }
+
+    # === Rate limiting (defensa adicional al de la app) ===
+    # 100 req/min por IP
+    @rate_limited {
+        not path /api/status/health
+        not path /api/auth/login
+    }
+    rate_limit @rate_limited {remote.ip} 100r/m
+
+    encode zstd gzip
+}
+
+# === Sitio por IP (sin dominio) — solo si necesitas acceso por IP ===
+# http://:80 {
+#     reverse_proxy app:8000
+# }
