@@ -1,0 +1,23 @@
+[Unit]
+Description=Plantillas de bots - FastAPI panel
+After=network.target
+
+[Service]
+Type=simple
+User=pdb
+Group=pdb
+WorkingDirectory=/opt/plantillas-de-bots
+Environment="PATH=/opt/plantillas-de-bots/.venv/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/opt/plantillas-de-bots/.venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+# Hardening (defense in depth)
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/plantillas-de-bots/data
+
+[Install]
+WantedBy=multi-user.target

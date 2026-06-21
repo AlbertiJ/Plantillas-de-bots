@@ -28,12 +28,18 @@ from app import auth, admin, launcher, activity, builder
 from app import ctf_osint, libraries, ctf_templates, watchdog, status
 from app import botfather, favicon
 from app.config import settings
+from app.logging_config import configure_logging, get_logger
 
 # Forzar UTF-8 en stdout (Windows cp1252 rompe con emojis)
 try:
     sys.stdout.reconfigure(encoding="utf-8")
 except Exception:
     pass
+
+# Configurar logging estructurado (structlog). Una sola vez al arranque.
+configure_logging()
+
+logger = get_logger(__name__)
 
 # ---------------------------------------------------------
 # Rutas base
@@ -60,6 +66,12 @@ def _ensure_admin_credentials() -> None:
         return  # ya está inicializado
 
     initial_password = secrets.token_urlsafe(16)
+    logger.warning(
+        "first_run_admin_created",
+        username="admin",
+        initial_password_preview=f"{initial_password[:4]}...",
+        hint="leer consola para la clave completa",
+    )
     auth.create_credential(
         username="admin",
         password=initial_password,

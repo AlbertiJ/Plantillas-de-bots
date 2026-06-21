@@ -36,6 +36,9 @@ from pydantic import BaseModel
 
 from app.auth import is_authenticated
 from app.ratelimit import rate_limit_for_launcher
+from app.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # ---------------------------------------------------------
 # Paths
@@ -158,6 +161,7 @@ async def _stream_process(bot_id: str, run_id: str, cmd: list[str], cwd: Path | 
     start_ts = time.time()
     yield _sse("start", {"run_id": run_id, "bot_id": bot_id, "cmd": cmd, "cwd": str(cwd) if cwd else None})
     _log_activity({"run_id": run_id, "bot_id": bot_id, "event": "start", "cmd": cmd})
+    logger.info("bot_started", bot_id=bot_id, run_id=run_id, cmd=cmd)
 
     # Lanzar proceso
     if sys.platform == "win32":
@@ -224,6 +228,10 @@ async def _stream_process(bot_id: str, run_id: str, cmd: list[str], cwd: Path | 
         "run_id": run_id, "bot_id": bot_id, "event": "done",
         "exit_code": exit_code, "duration_s": round(duration, 2),
     })
+    logger.info(
+        "bot_finished", bot_id=bot_id, run_id=run_id,
+        exit_code=exit_code, duration_s=round(duration, 2),
+    )
 
 
 # ---------------------------------------------------------
