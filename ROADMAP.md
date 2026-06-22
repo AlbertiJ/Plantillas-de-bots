@@ -38,7 +38,7 @@
 |---|---|---|---|
 | C1 | Pre-commit hooks (black + ruff) | ✅ hecho | 30 min |
 | C2 | Logging estructurado con structlog | ✅ hecho | 2-3 h |
-| C3 | Type hints completos en routers | ⏳ pendiente | 4 h |
+| C3 | Type hints completos en routers | ✅ hecho | 4 h |
 
 ## 🟠 Operacional (producción)
 
@@ -71,7 +71,7 @@
 
 ---
 
-## 📅 Changelog de esta sesión (2026-06-21 01:40-02:30 ART)
+## 📅 Changelog de esta sesión (2026-06-21 01:40-02:30 ART + 2026-06-22 01:10-02:30 ART)
 
 ### 2026-06-21 — ROADMAP Q1-Q4 + C1 + G2-G5
 - **Tests:** 86/86 pytest passing (73 anteriores + 13 nuevos)

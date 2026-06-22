@@ -43,7 +43,7 @@ import ipaddress
 import json
 import socket
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -107,7 +107,7 @@ async def _tg_call(token: str, method: str, **params) -> dict:
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             if files:
-                r = await client.post(url, data=data, files=files)
+                r = await client.post(url, data=data, files=cast(Any, files))
             else:
                 r = await client.post(url, json=data)
     except httpx.RequestError as e:
@@ -119,7 +119,7 @@ async def _tg_call(token: str, method: str, **params) -> dict:
             status_code=400,
             detail=f"Telegram respondio error: {body.get('description', body)}",
         )
-    return body.get("result", body)
+    return cast(dict[str, Any], body.get("result", body))
 
 
 # ---------------------------------------------------------
@@ -184,8 +184,10 @@ async def get_current_config(bot_id: str, request: Request):
         raise HTTPException(status_code=404, detail=f"Bot '{bot_id}' no encontrado")
 
     token = bot["token"]
-    out = {"bot_id": bot_id, "name": None, "description": None,
-           "short_description": None, "commands": None}
+    out: dict[str, Any] = {
+        "bot_id": bot_id, "name": None, "description": None,
+        "short_description": None, "commands": None,
+    }
 
     # Pedimos los datos en paralelo-ish
     import asyncio

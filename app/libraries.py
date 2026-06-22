@@ -12,7 +12,7 @@ para que la UI /libraries las liste.
 """
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
@@ -22,10 +22,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 LIBS_FILE = BASE_DIR / "data" / "libraries.json"
 
 
-def _load_all() -> dict:
+def _load_all() -> dict[str, Any]:
     if not LIBS_FILE.exists():
         return {"version": "0.0.0", "libraries": []}
-    return json.loads(LIBS_FILE.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(LIBS_FILE.read_text(encoding="utf-8")))
 
 
 def _require_auth(request: Request) -> None:

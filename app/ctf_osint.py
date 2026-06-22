@@ -11,7 +11,7 @@ y los expone como endpoints para que la UI /ctf-osint los liste.
 """
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -25,10 +25,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 BOTS_FILE = BASE_DIR / "data" / "osint_bots.json"
 
 
-def _load_all() -> dict:
+def _load_all() -> dict[str, Any]:
     if not BOTS_FILE.exists():
         return {"version": "0.0.0", "description": "", "bots": []}
-    return json.loads(BOTS_FILE.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(BOTS_FILE.read_text(encoding="utf-8")))
 
 
 def _require_auth(request: Request) -> None:

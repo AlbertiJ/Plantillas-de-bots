@@ -25,7 +25,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -186,7 +186,7 @@ def _load_bot_config(bot_id: str) -> Optional[dict]:
         return None
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    return cast(Optional[dict[str, Any]], json.loads(path.read_text(encoding="utf-8")))
 
 
 def _get_or_create(bot_id: str) -> WatchedProcess:

@@ -27,6 +27,7 @@
 | O2: Dockerfile + docker-compose | ✅ | ✅ (29 tests) | ✅ (10 vectores, sin bloqueantes) | ✅ cerrado |
 | O1: HTTPS con Caddy | ✅ | ✅ (20 tests) | ✅ (7 vectores, 1 hallazgo mitigado) | ✅ cerrado |
 | C2: structlog | ✅ | ✅ (10 tests) | ✅ (5 vectores, sin bloqueantes) | ✅ cerrado |
+| C3: type hints + mypy | ✅ | ✅ (23 tests + 0 errores mypy) | ✅ | ✅ cerrado |
 
 ---
 

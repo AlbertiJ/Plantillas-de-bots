@@ -1,0 +1,3 @@
+# Marker para que el paquete sea type-checked por terceros.
+# PEP 561: https://peps.python.org/pep-0561/
+# Le dice a mypy "podes chequear el codigo que importa de este paquete".
