@@ -16,7 +16,7 @@ import platform
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -54,7 +54,7 @@ def _last_activity() -> Optional[str]:
         if not lines:
             return None
         import json
-        return json.loads(lines[-1]).get("ts")
+        return cast(Optional[str], json.loads(lines[-1]).get("ts"))
     except Exception:
         return None
 
@@ -75,7 +75,7 @@ router = APIRouter()
 async def system_status(request: Request):
     """Metricas del sistema en vivo."""
     _require_auth(request)
-    out = {
+    out: dict[str, Any] = {
         "ok": True,
         "uptime_s": round(time.time() - STARTED_AT, 1),
         "psutil_available": HAS_PSUTIL,

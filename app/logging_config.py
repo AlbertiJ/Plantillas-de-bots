@@ -25,6 +25,7 @@ Uso:
 import logging
 import os
 import sys
+from typing import Any, cast
 
 import structlog
 
@@ -66,7 +67,7 @@ def configure_logging(env: str | None = None, level: str | None = None) -> None:
 
     if env == "development":
         # Humano: colores, llaves resaltadas
-        processors = shared_processors + [
+        processors: list[Any] = shared_processors + [
             structlog.dev.ConsoleRenderer(colors=True),
         ]
     else:
@@ -92,4 +93,4 @@ def get_logger(name: str | None = None) -> structlog.stdlib.BoundLogger:
     Devuelve un logger bound al nombre del modulo.
     Uso: from app.logging_config import get_logger; logger = get_logger(__name__)
     """
-    return structlog.get_logger(name)
+    return cast(structlog.stdlib.BoundLogger, structlog.get_logger(name))

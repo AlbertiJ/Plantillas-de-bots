@@ -21,7 +21,7 @@ import secrets
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 
 from fastapi import APIRouter, Cookie, HTTPException, Request, Response
 from passlib.hash import bcrypt
@@ -77,14 +77,14 @@ def create_credential(username: str, password: str, must_change: bool = False) -
     return payload
 
 
-def get_credential(username: str) -> Optional[dict]:
+def get_credential(username: str) -> Optional[dict[str, Any]]:
     path = _cred_path(username)
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
-def update_credential(username: str, **fields) -> dict:
+def update_credential(username: str, **fields: Any) -> dict[str, Any]:
     """Actualiza campos de la credencial (ej. password_hash, must_change)."""
     cred = get_credential(username)
     if not cred:
@@ -112,6 +112,8 @@ def _parse_session_token(token: str) -> Optional[str]:
 
 def is_authenticated(request: Request) -> bool:
     token = request.cookies.get(SESSION_TOKEN_COOKIE)
+    if token is None:
+        return False
     return _parse_session_token(token) is not None
 
 
@@ -146,7 +148,10 @@ async def login(req: LoginRequest, request: Request, response: Response):
 
 @router.post("/change")
 async def change_password(req: ChangePasswordRequest, request: Request):
-    username = _parse_session_token(request.cookies.get(SESSION_TOKEN_COOKIE))
+    token = request.cookies.get(SESSION_TOKEN_COOKIE)
+    if token is None:
+        raise HTTPException(status_code=401, detail="No autenticado")
+    username = _parse_session_token(token)
     if not username:
         raise HTTPException(status_code=401, detail="No autenticado")
 

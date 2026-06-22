@@ -28,7 +28,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import AsyncIterator
+from typing import Any, AsyncIterator, Optional, cast
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -75,7 +75,7 @@ def _load_bot(bot_id: str) -> dict:
     path = _bot_path(bot_id)
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"Bot '{bot_id}' no existe")
-    return json.loads(path.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
 
 
 def _log_activity(entry: dict) -> None:

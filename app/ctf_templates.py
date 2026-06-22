@@ -12,7 +12,7 @@ fuzzing, exploitation, crypto y stego).
 """
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
@@ -29,10 +29,10 @@ TEMPLATES_FILE = BASE_DIR / "data" / "ctf_templates.json"
 # ---------------------------------------------------------
 # Carga
 # ---------------------------------------------------------
-def _load_all() -> dict:
+def _load_all() -> dict[str, Any]:
     if not TEMPLATES_FILE.exists():
         return {"version": "0.0.0", "templates": [], "categories": []}
-    return json.loads(TEMPLATES_FILE.read_text(encoding="utf-8"))
+    return cast(dict[str, Any], json.loads(TEMPLATES_FILE.read_text(encoding="utf-8")))
 
 
 # ---------------------------------------------------------
