@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Pregunta rápida
+    url: https://github.com/AlbertiJ/Plantillas-de-bots/discussions
+    about: Para preguntas sobre el proyecto.
+  - name: Reporte de seguridad
+    url: mailto:juan.alberti@gba.gob.ar
+    about: Reportar vulnerabilidades por email (no público).
