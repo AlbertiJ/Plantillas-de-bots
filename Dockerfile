@@ -31,8 +31,9 @@ WORKDIR /app
 # Copiar dependencias instaladas desde builder
 COPY --from=builder /root/.local /home/pdb/.local
 
-# Asegurar que pip/user bin está en PATH
+# Asegurar que pip/user bin está en PATH y los site-packages son visibles
 ENV PATH=/home/pdb/.local/bin:$PATH \
+    PYTHONPATH=/home/pdb/.local/lib/python3.12/site-packages \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \

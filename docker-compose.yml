@@ -27,9 +27,8 @@ services:
     # Sin network_mode: el servicio caddy accede a "app:8000" por la red interna
     networks:
       - pdb-net
-    depends_on:
-      caddy:
-        condition: service_started
+    # NOTA: app NO depende de caddy (romperia el ciclo). Si usas caddy,
+    # el espera a que app este healthy (configurado mas abajo).
     # Limites de recursos (ajustar segun uso real)
     deploy:
       resources:
