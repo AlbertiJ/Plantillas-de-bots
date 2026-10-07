@@ -59,7 +59,7 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement at
-[[correo eliminado]](mailto:[correo eliminado]).
+[the private security form](https://github.com/AlbertiJ/Plantillas-de-bots/security/advisories/new) or by direct message on [LinkedIn](https://www.linkedin.com/in/alberti-juan/).
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the

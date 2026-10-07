@@ -138,4 +138,4 @@ Cobertura nueva en `test_security_fixes.py`:
 ### 📞 Soporte
 
 - Issues: https://github.com/AlbertiJ/plantillas-de-bots-v1/issues
-- Autor: Juan Alberti <[correo eliminado]>
+- Autor: Juan Alberti ([@AlbertiJ](https://github.com/AlbertiJ))

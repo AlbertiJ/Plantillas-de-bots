@@ -74,7 +74,7 @@ python -m uvicorn main:app --host 127.0.0.1 --port 8000
 
 ## Reportar vulnerabilidades de seguridad
 
-**No abrir issue público.** Email a [[correo eliminado]](mailto:[correo eliminado])
+**No abrir issue público.** Usá el [reporte privado de GitHub](https://github.com/AlbertiJ/Plantillas-de-bots/security/advisories/new)
 con detalles. Ver [SECURITY.md](SECURITY.md).
 
 ## Licencia

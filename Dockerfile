@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 FROM python:3.12-slim AS runtime
 
 # Metadata
-LABEL maintainer="Juan Alberti <[correo eliminado]>" \
+LABEL maintainer="Juan Alberti (AlbertiJ)" \
       version="1.0.1" \
       description="Plantillas de bots - FastAPI panel for Telegram/CTF/OSINT bots"
 

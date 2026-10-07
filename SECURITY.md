@@ -11,7 +11,8 @@
 
 **No abras un issue público para reportar vulnerabilidades.**
 
-Email a [[correo eliminado]](mailto:[correo eliminado]) con:
+Reportalo **de forma privada** desde la pestaña **Security → Report a vulnerability**
+([abrir reporte](https://github.com/AlbertiJ/Plantillas-de-bots/security/advisories/new)) con:
 
 - Descripción del problema
 - Pasos para reproducir
